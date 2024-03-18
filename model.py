@@ -93,8 +93,9 @@ class Generator(nn.Module):
         self.decode5 = GBlock(features*8*2, features*4, encoder=False, act='ReLU', use_dropout=False)
         self.decode6 = GBlock(features*4*2, features*2, encoder=False, act='ReLU', use_dropout=False)
         self.decode7 = GBlock(features*2*2, features, encoder=False, act='ReLU', use_dropout=False)
+        
         self.final_decode = nn.Sequential(
-            nn.ConvTranspose2d(features*2, in_channels, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(features*2, 1, kernel_size=4, stride=2, padding=1),
             nn.Tanh()
         )
 
