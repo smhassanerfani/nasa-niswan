@@ -8,10 +8,11 @@ import torchvision.transforms as T
 
 class E33OMA(Dataset):
 
-    def __init__(self, split, joint_transform=None):
+    def __init__(self, split, padding=None, joint_transform=None):
         super(E33OMA, self).__init__()
         
-        self.split = split      
+        self.split = split
+        self.padding = padding
         self.joint_transform = joint_transform
         self.transform = T.ToTensor()
         
@@ -87,6 +88,16 @@ class E33OMA(Dataset):
 
         X = 2 * X - 1
         y = 2 * y - 1
+        
+        if self.padding:
+            w = X.shape[2] # width
+            h = X.shape[1] # height
+            
+            top_pad   = self.padding - h
+            right_pad = self.padding - w
+            
+            X = np.lib.pad(X, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
+            y = np.lib.pad(y, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
         
         X = torch.from_numpy(X) # torch image: C x H x W
         y = torch.from_numpy(y) # torch image: C x H x W
