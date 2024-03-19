@@ -97,10 +97,9 @@ class E33OMA(Dataset):
             right_pad = self.padding - w
             
             X = np.lib.pad(X, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
-            y = np.lib.pad(y, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
         
-        X = torch.from_numpy(X) # torch image: C x H x W
-        y = torch.from_numpy(y) # torch image: C x H x W
+        X = torch.from_numpy(X) # torch image: C x H x W -> (5, 256, 256)
+        y = torch.from_numpy(y) # torch image: C x H x W -> (1, 90, 144)
             
         if self.joint_transform:
             X, y = self.joint_transform(X, y)
