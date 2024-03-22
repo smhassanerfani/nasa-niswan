@@ -48,14 +48,14 @@ class E33OMA(Dataset):
         ds1.load()
 
         # Add positive lag for target variable
-        target = np.expand_dims(ds1['seasalt'][1:, ...], axis=1) # (4319, 1, 90, 144)
+        target = np.expand_dims(ds1['seasalt'][:, ...], axis=1) # (4319, 1, 90, 144) [1:, ...]
 
         # Add negative lag for input features
-        u = np.expand_dims(ds1['u'][:-1, ...], axis=1) # (4319, 1, 90, 144)
-        v = np.expand_dims(ds1['v'][:-1, ...], axis=1) # (4319, 1, 90, 144)
-        omega = np.expand_dims(ds1['omega'][:-1, ...], axis=1) # (4319, 1, 90, 144)
-        prec = np.expand_dims(ds1['prec'][:-1, ...], axis=1)   # (4319, 1, 90, 144)
-        seasalt_src = np.expand_dims(ds1['seasalt_src'][:-1, ...], axis=1) # (4319, 1, 90, 144)
+        u = np.expand_dims(ds1['u'][:, ...], axis=1) # (4319, 1, 90, 144) [:-1, ...]
+        v = np.expand_dims(ds1['v'][:, ...], axis=1) # (4319, 1, 90, 144)
+        omega = np.expand_dims(ds1['omega'][:, ...], axis=1) # (4319, 1, 90, 144)
+        prec = np.expand_dims(ds1['prec'][:, ...], axis=1)   # (4319, 1, 90, 144)
+        seasalt_src = np.expand_dims(ds1['seasalt_src'][:, ...], axis=1) # (4319, 1, 90, 144)
 
         features = np.concatenate((u, v, omega, prec, seasalt_src), axis=1) # (4319, 5, 90, 144)
 
@@ -84,7 +84,7 @@ class E33OMA(Dataset):
         y = self.target[index, ...]
     
         X = (X - self.features_min) / (self.features_max - self.features_min)
-        y = (y - self.target_min) / (self.target_max - self.target_min)
+        y = (y - self.target_min)   / (self.target_max - self.target_min)
 
         X = 2 * X - 1
         y = 2 * y - 1
