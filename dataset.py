@@ -6,89 +6,121 @@ import xarray as xr
 from torch.utils.data import Dataset
 import torchvision.transforms as T
 
+import warnings
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+
 class E33OMA(Dataset):
 
-    def __init__(self, split, padding=None, joint_transform=None):
+    def __init__(self, period, species, padding, root='/home/serfani/serfani_data0/E33OMA'):
         super(E33OMA, self).__init__()
         
-        self.split = split
+        self.period  = period
+        self.species = species
         self.padding = padding
-        self.joint_transform = joint_transform
-        self.transform = T.ToTensor()
+        self.root    = root
         
-        self._get_data()
+        self._get_data_index()
     
-    
-    def _get_data(self):
+    def _get_data_index(self):
         
-        for root, dirs, files in os.walk('/discover/nobackup/sebauer1/E33oma_ai/output/'):
-
-            sorted_files = sorted(files)
-            ds_list1 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] == 'aijlh1E33oma_ai']
-            ds_list2 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] == 'taijlh1E33oma_ai']
-            ds_list3 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] in ['cijh1E33oma_ai', 'taijh1E33oma_ai']]
-
-        ds1 = xr.open_mfdataset(ds_list1)
-        ds1 = ds1.isel(level=0).drop_vars('level')
-        ds1 = ds1.drop_vars(['axyp'])
-
-        ds2 = xr.open_mfdataset(ds_list2)
-        ds2 = ds2.isel(level=0).drop_vars('level')
-        ds2 = ds2.drop_vars(['axyp', 'Clay', 'BCB'])
-
-        ds3 = xr.open_mfdataset(ds_list3)
-
-        ds1['seasalt'] = ds2['seasalt1']
-        ds1['prec'] = ds3['prec']
-        ds1['seasalt_src'] = ds3['seasalt1_ocean_src']
-
-        datetimeindex = ds1.indexes['time'].to_datetimeindex()
-        ds1['time'] = datetimeindex
-        
-        ds1.load()
-
-        # Add positive lag for target variable
-        target = np.expand_dims(ds1['seasalt'][:, ...], axis=1) # (4319, 1, 90, 144) [1:, ...]
-
-        # Add negative lag for input features
-        u = np.expand_dims(ds1['u'][:, ...], axis=1) # (4319, 1, 90, 144) [:-1, ...]
-        v = np.expand_dims(ds1['v'][:, ...], axis=1) # (4319, 1, 90, 144)
-        omega = np.expand_dims(ds1['omega'][:, ...], axis=1) # (4319, 1, 90, 144)
-        prec = np.expand_dims(ds1['prec'][:, ...], axis=1)   # (4319, 1, 90, 144)
-        seasalt_src = np.expand_dims(ds1['seasalt_src'][:, ...], axis=1) # (4319, 1, 90, 144)
-
-        features = np.concatenate((u, v, omega, prec, seasalt_src), axis=1) # (4319, 5, 90, 144)
-
-        
-        self.target_min = target[:3023, ...].min().reshape(-1, 1, 1)
-        self.target_max = target[:3023, ...].max().reshape(-1, 1, 1)
-
-        self.features_min = features[:3023, ...].min(axis=(0, 2, 3)).reshape(-1, 1, 1) 
-        self.features_max = features[:3023, ...].max(axis=(0, 2, 3)).reshape(-1, 1, 1)
-        
-        if self.split == "train": # 70% of the total data
-            self.target = target[:3023, ...]
-            self.features = features[:3023, ...]
-        
-        elif self.split == "val": # 10% of the total data
-            self.target = target[3023:3455, ...]
-            self.features = features[3023:3455, ...]
+        for root, dirs, files in os.walk(self.root):
             
-        else: # (self.split == "test") # 20% of the total data
-            self.target = target[3455:, ...]
-            self.features = features[3455:, ...]
+            sorted_files = sorted(files)
+            list1 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] == 'aijlh1E33oma_ai']   # Velocity Fields (time, level, lat, lon)
+
+        # Convert `cftime.DatetimeNoLeap` to `pandas.to_datetime()`
+        datetimeindex = xr.open_mfdataset(list1[:365]).indexes['time'].to_datetimeindex()
+
+        idx = np.arange(len(datetimeindex))
+        rng = np.random.default_rng(0)
+        rng.shuffle(idx)
         
+        if   self.period == 'train':
+            self.datetimeindex = datetimeindex[idx[:12264]]
+        
+        elif self.period == 'val':
+            self.datetimeindex = datetimeindex[idx[12264:]]
+
     def __getitem__(self, index):
         
-        X = self.features[index, ...]
-        y = self.target[index, ...]
-    
-        X = (X - self.features_min) / (self.features_max - self.features_min)
-        y = (y - self.target_min)   / (self.target_max - self.target_min)
-
-        X = 2 * X - 1
-        y = 2 * y - 1
+        timestep = self.datetimeindex[index].strftime('%Y%m%d')
         
+        ds1 = xr.open_dataset(os.path.join(self.root, f'{timestep}.aijlh1E33oma_ai.nc'))
+        ds1['time'] = ds1.indexes['time'].to_datetimeindex()
+        
+        ds2 = xr.open_dataset(os.path.join(self.root, f'{timestep}.cijh1E33oma_ai.nc'))
+        ds2['time'] = ds2.indexes['time'].to_datetimeindex()
+
+        X1 = np.expand_dims(ds1['u'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+        X2 = np.expand_dims(ds1['v'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+        X3 = np.expand_dims(ds1['omega'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+
+        X4 = np.expand_dims(ds2['prec'].sel(time=self.datetimeindex[index]), axis=0)
+
+        with open('variable_statistics.json', 'r') as jf:
+            vs = json.load(jf)
+        
+        X1_mean = vs['u']['mean'];    X1_std = vs['u']['std']
+        X2_mean = vs['v']['mean'];    X2_std = vs['v']['std']
+        X3_mean = vs['w']['mean'];    X3_std = vs['w']['std']
+        X4_mean = vs['prec']['mean']; X4_std = vs['prec']['std']
+
+        if self.species == 'seasalt':
+            # Add positive lag for target variable
+            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep}.taijh1E33oma_ai.nc'))
+            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
+
+            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep}.taijlh1E33oma_ai.nc'))
+            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
+
+            X5 = np.expand_dims(ds3['seasalt1_ocean_src'].sel(time=self.datetimeindex[index]), axis=0)
+            y  = np.expand_dims(ds4['seasalt1'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+
+            X5_mean = vs['ss_src']['mean']; X5_std = vs['ss_src']['std']
+            y_mean  = vs['ss_conc']['mean']; y_std = vs['ss_conc']['std']
+
+        if self.species == 'clay':
+            # Add positive lag for target variable
+            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep}.tNDaijh1E33oma_ai.nc'))
+            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
+
+            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep}.taijlh1E33oma_ai.nc'))
+            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
+
+            X5 = np.expand_dims(ds3['Clay_emission'].sel(time=self.datetimeindex[index]), axis=0)
+            y  = np.expand_dims(ds4['Clay'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+
+            X5_mean = vs['c_src']['mean']; X5_std = vs['c_src']['std']
+            y_mean  = vs['c_conc']['mean']; y_std = vs['c_conc']['std']
+
+        if self.species == 'bcb':
+            # Add positive lag for target variable
+            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep}.tNDaijh1E33oma_ai.nc'))
+            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
+
+            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep}.taijlh1E33oma_ai.nc'))
+            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
+
+            X5 = np.expand_dims(ds3['BCB_biomass_src'].sel(time=self.datetimeindex[index]), axis=0)
+            y  = np.expand_dims(ds4['BCB'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+
+            X5_mean = vs['bc_src']['mean']; X5_std = vs['bc_src']['std']
+            y_mean  = vs['bc_conc']['mean']; y_std = vs['bc_conc']['std']
+
+
+        X = np.concatenate((X1, X2, X3, X4, X5), axis=0)  # (5, 90, 144)
+
+        Xs_mean = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean)).reshape(-1, 1, 1)
+        Xs_std  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std)).reshape(-1, 1, 1)
+        
+        self.y_mean = np.array(y_mean).reshape(-1, 1, 1)
+        self.y_std  = np.array(y_std).reshape(-1, 1, 1)
+
+        X = (X - Xs_mean) / Xs_std
+        y = (y -  self.y_mean) / self.y_std
+
         if self.padding:
             w = X.shape[2] # width
             h = X.shape[1] # height
@@ -97,14 +129,12 @@ class E33OMA(Dataset):
             right_pad = self.padding - w
             
             X = np.lib.pad(X, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
+            y = np.lib.pad(y, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
         
-        X = torch.from_numpy(X) # torch image: C x H x W -> (5, 256, 256)
-        y = torch.from_numpy(y) # torch image: C x H x W -> (1, 90, 144)
-            
-        if self.joint_transform:
-            X, y = self.joint_transform(X, y)
+        X = torch.from_numpy(X) # torch image: C x H x W
+        y = torch.from_numpy(y) # torch image: C x H x W
 
         return X, y
         
     def __len__(self):
-        return len(self.target)
+        return len(self.datetimeindex)
