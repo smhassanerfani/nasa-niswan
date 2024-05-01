@@ -96,7 +96,7 @@ class Generator(nn.Module):
         
         self.final_decode = nn.Sequential(
             nn.ConvTranspose2d(features*2, 1, kernel_size=4, stride=2, padding=1),
-            nn.Tanh()
+            # nn.Tanh()
         )
 
     def forward(self, x):
