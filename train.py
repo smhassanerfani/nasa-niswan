@@ -41,7 +41,7 @@ def main(args):
 
     # Initializing the loss function and optimizer
     optimizer = optim.Adam(generator.parameters(), lr=args.learning_rate, betas=tuple(args.betas))
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.scheduler_step, gamma=0.5)
 
     loss_func1 = nn.MSELoss() # reduction='none'
     loss_func2 = nn.L1Loss() # reduction='none'
@@ -120,7 +120,7 @@ def get_arguments(
     INPUT_SIZE=256,
     BATCH_SIZE=4,
     NUM_WORKERS=1,
-    LAMBDA_G=100,
+    SCHEDULER_STEP=10,
     BETAS = (0.5, 0.999),  # Default values for Adam optimizer
     USE_CHECKPOINT = False
 ):
@@ -150,8 +150,8 @@ def get_arguments(
                         help="Number of images sent to the network in one step.")
     parser.add_argument("--num-workers", type=int, default=NUM_WORKERS,
                         help="Number of workers for multithreading dataloader.")
-    parser.add_argument("--momentum", type=float, default=LAMBDA_G,
-                        help="Momentum component of the optimizer.")
+    parser.add_argument("--scheduler-step", type=int, default=SCHEDULER_STEP,
+                        help="Scheduler step of the optimizer.")
     parser.add_argument("--betas", nargs=2, type=float, default=BETAS,
                         help="Exponential decay rates for the 1st and 2nd moments of the optimizer.")
     parser.add_argument("--use-checkpoint", action="store_true", default=USE_CHECKPOINT,
