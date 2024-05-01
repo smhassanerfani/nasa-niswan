@@ -1,4 +1,5 @@
 import os
+import json
 import torch
 import numpy as np
 import xarray as xr
@@ -8,8 +9,6 @@ import torchvision.transforms as T
 
 import warnings
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", category=RuntimeWarning)
 
 class E33OMA(Dataset):
 
@@ -129,10 +128,9 @@ class E33OMA(Dataset):
             right_pad = self.padding - w
             
             X = np.lib.pad(X, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
-            y = np.lib.pad(y, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
         
-        X = torch.from_numpy(X) # torch image: C x H x W
-        y = torch.from_numpy(y) # torch image: C x H x W
+        X = torch.from_numpy(X).type(torch.float32) # torch image: C x H x W
+        y = torch.from_numpy(y).type(torch.float32) # torch image: C x H x W
 
         return X, y
         
