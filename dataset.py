@@ -30,6 +30,7 @@ class E33OMA(Dataset):
             list1 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] == 'aijlh1E33oma_ai']   # Velocity Fields (time, level, lat, lon)
 
         # Convert `cftime.DatetimeNoLeap` to `pandas.to_datetime()`
+        warnings.filterwarnings("ignore", message="Converting a CFTimeIndex with dates from a non-standard calendar")
         datetimeindex = xr.open_mfdataset(list1[:365]).indexes['time'].to_datetimeindex()
 
         idx = np.arange(len(datetimeindex))
@@ -41,6 +42,9 @@ class E33OMA(Dataset):
         
         elif self.period == 'val':
             self.datetimeindex = datetimeindex[idx[12264:]]
+        
+        elif self.period == 'test':
+            self.datetimeindex = xr.open_mfdataset(list1[365:]).indexes['time'].to_datetimeindex()
 
     def __getitem__(self, index):
         
@@ -111,12 +115,12 @@ class E33OMA(Dataset):
 
         X = np.concatenate((X1, X2, X3, X4, X5), axis=0)  # (5, 90, 144)
 
-        Xs_mean = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean)).reshape(-1, 1, 1)
-        Xs_std  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std)).reshape(-1, 1, 1)
+        Xs_mean = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(-1, 1, 1)
+        Xs_std  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(-1, 1, 1)
+ 
+        self.y_mean = np.array(y_mean, dtype=np.float32).reshape(-1, 1, 1)
+        self.y_std  = np.array(y_std, dtype=np.float32).reshape(-1, 1, 1)
         
-        self.y_mean = np.array(y_mean).reshape(-1, 1, 1)
-        self.y_std  = np.array(y_std).reshape(-1, 1, 1)
-
         X = (X - Xs_mean) / Xs_std
         y = (y -  self.y_mean) / self.y_std
 
