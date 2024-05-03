@@ -12,12 +12,13 @@ import warnings
 
 class E33OMA(Dataset):
 
-    def __init__(self, period, species, padding, root='/home/serfani/serfani_data0/E33OMA'):
+    def __init__(self, period, species, padding, transform=None, root='/home/serfani/serfani_data0/E33OMA'):
         super(E33OMA, self).__init__()
         
         self.period  = period
         self.species = species
         self.padding = padding
+        self.transform = transform
         self.root    = root
         
         self._get_data_index()
@@ -63,7 +64,13 @@ class E33OMA(Dataset):
         X4 = np.expand_dims(ds2['prec'].sel(time=self.datetimeindex[index]), axis=0)
 
         with open('variable_statistics.json', 'r') as jf:
-            vs = json.load(jf)
+            data = json.load(jf)
+        
+            if self.transform:
+                vs = data['set2']
+            
+            else:
+                vs = data['set1']
         
         X1_mean = vs['u']['mean'];    X1_std = vs['u']['std']
         X2_mean = vs['v']['mean'];    X2_std = vs['v']['std']
@@ -114,6 +121,10 @@ class E33OMA(Dataset):
 
 
         X = np.concatenate((X1, X2, X3, X4, X5), axis=0)  # (5, 90, 144)
+
+        if self.transform:
+            X = np.ma.log10(X).filled(0.0)
+            y = np.ma.log10(y).filled(0.0)
 
         Xs_mean = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(-1, 1, 1)
         Xs_std  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(-1, 1, 1)
