@@ -8,6 +8,9 @@ import torch
 from functools import wraps
 from sklearn.metrics import r2_score
 
+import matplotlib.pyplot as plt
+import xarray as xr
+
 def save_checkpoint(model, optimizer, filename, learning_rate=None, epoch=None):
 
     print('Saving Checkpoint...')
@@ -98,3 +101,102 @@ class LoggerDecorator(object):
             return result
         
         return wrapper
+
+
+def qqplot(ds_list, var, yax1='Depth (m)' ,axis_names=None, site_name=None, quantiles=None):
+
+    ds = xr.open_mfdataset(ds_list)
+
+    if ds[var].ndim == 3:
+        ds = ds.weighted(weights).mean(dim=("lat", "lon"))
+    
+    if ds[var].ndim == 4:    
+        ds = ds.isel(level=0).weighted(weights).mean(dim=("lat", "lon"))
+        
+    y_test = ds[var].isel(time=slice(0, 17520)).values
+    y_pred = ds[var].isel(time=slice(17520, None)).values
+
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(10, 3), constrained_layout=True)
+
+    if axis_names is None:
+        y_test_name='GT'
+        y_pred_name='MODEL'
+    else:
+        y_test_name=axis_names[0]
+        y_pred_name=axis_names[1]
+
+    ax1.boxplot([y_test, y_pred])
+
+    ax1.set_xticklabels([y_test_name, y_pred_name])
+    ax1.tick_params(axis='x', labelrotation=0, labelsize=12)
+    ax1.set_ylabel(yax1)
+    ax1.grid(True)
+    # ax1.set_title(f'BOX PLOT')
+
+    x1 = np.sort(y_test)
+    y1 = np.arange(1, len(y_test) + 1) / len(y_test)
+    # ax2.plot(x1, y1, linestyle='none', marker='o', alpha=0.2, label=y_test_name)
+    ax2.plot(x1, y1, linestyle='-', alpha=0.8, label=y_test_name)
+
+    x2 = np.sort(y_pred)
+    y2 = np.arange(1, len(y_pred) + 1) / len(y_pred)
+    # ax1.plot(x2, y2, linestyle='none', marker='.', alpha=0.5, label='GT')
+    ax2.plot(x2, y2, linestyle='-.', alpha=1, label=y_pred_name)
+
+    # ax2.set_title(f'ECDF')
+    ax2.legend()
+
+    if quantiles is None:
+        quantiles = min(len(y_test), len(y_pred))
+    quantiles = np.linspace(start=0, stop=1, num=int(quantiles))
+
+    x_quantiles = np.quantile(y_test, quantiles, method='nearest')
+    y_quantiles = np.quantile(y_pred, quantiles, method='nearest')
+
+    ax3.scatter(x_quantiles, y_quantiles)
+    # ax3.plot([0, 100], [0, 100], '--', color = 'black', linewidth=1.5)
+
+    max_value = np.array((x_quantiles, y_quantiles)).max()
+    min_value = np.array((x_quantiles, y_quantiles)).min()
+    ax3.plot([min_value, max_value], [min_value, max_value], '--', color='black', linewidth=1.5)
+
+    ax3.set_xlabel(y_test_name)
+    ax3.set_ylabel(y_pred_name)
+    # ax3.set_title(f'Q-Q PLOT')
+
+    if site_name is not None:
+        plt.savefig(f'./{site_name}.pdf', format='pdf', bbox_inches='tight', pad_inches=0.05)
+
+    plt.show()
+
+def plot_global_ave(ds_list, var):
+    ds = xr.open_mfdataset(ds_list)
+
+    if ds[var].ndim == 3:
+        ds = ds.weighted(weights).mean(dim=("lat", "lon"))
+    
+    if ds[var].ndim == 4:    
+        ds = ds.isel(level=0).weighted(weights).mean(dim=("lat", "lon"))
+
+    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(20, 4), constrained_layout=True, gridspec_kw={'width_ratios':[1, 4]})
+
+    ax1.boxplot([ds[var].isel(time=slice(0, 17520)).values, ds[var].isel(time=slice(17520, None)).values], showfliers=False)
+    ax1.set_xticklabels(['1950', '1951'])
+    ax1.grid()
+
+    ax2.plot(ds[var].isel(time=slice(0, 17520)).values, label='1950')
+    ax2.plot(ds[var].isel(time=slice(17520, None)).values, label='1951')
+    ax2.grid()
+
+    # Add tick labels for 12 months
+    month_indices = range(0, 17520, 17520 // 12)
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+    ax2.set_xticks(month_indices)
+    ax2.set_xticklabels(month_names, rotation=45)
+
+    # Add title for the entire subplot
+    plt.suptitle(fr'Input Variable: $\mathbf{{{var}}}$')
+
+    plt.legend()
+    plt.show()
