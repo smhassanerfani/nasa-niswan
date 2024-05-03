@@ -73,7 +73,7 @@ class Generator(nn.Module):
             nn.Conv2d(in_channels, features, kernel_size=4, stride=2, padding=1, padding_mode='reflect'),
             nn.LeakyReLU(0.2, inplace=True)
         )
-        self.encode1 = GBlock(features, features*2, encoder=True, act='LeakyReLU', use_dropout=False)
+        self.encode1 = GBlock(features,   features*2, encoder=True, act='LeakyReLU', use_dropout=False)
         self.encode2 = GBlock(features*2, features*4, encoder=True, act='LeakyReLU', use_dropout=False)
         self.encode3 = GBlock(features*4, features*8, encoder=True, act='LeakyReLU', use_dropout=False)
         self.encode4 = GBlock(features*8, features*8, encoder=True, act='LeakyReLU', use_dropout=False)
@@ -86,7 +86,7 @@ class Generator(nn.Module):
             nn.LeakyReLU(0.2, inplace=True)
         )
 
-        self.decode1 = GBlock(features*8, features*8, encoder=False, act='ReLU', use_dropout=True)
+        self.decode1 = GBlock(features*8,   features*8, encoder=False, act='ReLU', use_dropout=True)
         self.decode2 = GBlock(features*8*2, features*8, encoder=False, act='ReLU', use_dropout=True)
         self.decode3 = GBlock(features*8*2, features*8, encoder=False, act='ReLU', use_dropout=True)
         self.decode4 = GBlock(features*8*2, features*8, encoder=False, act='ReLU', use_dropout=False)
