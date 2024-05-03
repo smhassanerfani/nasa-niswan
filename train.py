@@ -1,7 +1,9 @@
 import os
 import time
+import json
 import random
 import argparse
+import inspect
 import numpy as np
 import warnings
 from sklearn.metrics import r2_score
@@ -33,8 +35,8 @@ def main(args):
     initialize_weights(generator)
 
     # Dataloader
-    train_dataset = E33OMA(period='train', species=args.species, padding=args.input_size)
-    val_dataset   = E33OMA(period='val',   species=args.species, padding=args.input_size)
+    train_dataset = E33OMA(period='train', species=args.species, padding=args.input_size, transform=args.transform)
+    val_dataset   = E33OMA(period='val',   species=args.species, padding=args.input_size, transform=args.transform)
 
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataloader   = DataLoader(val_dataset, batch_size=1, shuffle=True)
@@ -113,9 +115,10 @@ def main(args):
 
 
 def get_arguments(
-    MODEL='E33OMA-02',
-    SPECIES='seasalt',
+    MODEL='E33OMA-01',
+    SPECIES='bcb',
     LEARNING_RATE=1.0E-04,
+    TRANSFORM=True,
     NUM_EPOCHS=50,
     INPUT_SIZE=256,
     BATCH_SIZE=4,
@@ -135,6 +138,17 @@ def get_arguments(
 
     print('Working Directory:', SNAPSHOT_DIR)
 
+    # Get the names and default values of input arguments
+    arguments = inspect.signature(get_arguments).parameters
+    defaults = {arg_name: param.default for arg_name, param in arguments.items()}
+
+    defaults['SNAPSHOT_DIR'] = SNAPSHOT_DIR
+    defaults['RESTORE_FROM'] = RESTORE_FROM
+
+    # Dump the default arguments into a JSON file
+    with open(os.path.join(SNAPSHOT_DIR, 'configurations.json'), 'w') as outfile:
+        json.dump(defaults, outfile, indent=4)
+
     parser = argparse.ArgumentParser(description=f"Training {MODEL} on E33OMA.")
     parser.add_argument("--model", type=str, default=MODEL,
                         help=f"Model Name: {MODEL}")
@@ -142,6 +156,8 @@ def get_arguments(
                         help=f"Name of aerosol species.")
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE,
                         help="Base learning rate for training with polynomial decay.")
+    parser.add_argument("--transform", action="store_true", default=TRANSFORM,
+                        help="Whether to transform data for training.")
     parser.add_argument("--num-epochs", type=int, default=NUM_EPOCHS,
                         help="Number of epochs for training.")
     parser.add_argument("--input-size", type=int, default=INPUT_SIZE,
