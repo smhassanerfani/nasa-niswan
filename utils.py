@@ -1,4 +1,5 @@
 
+import os
 import time
 import logging
 import datetime
@@ -10,6 +11,14 @@ from sklearn.metrics import r2_score
 
 import matplotlib.pyplot as plt
 import xarray as xr
+
+# Plot Settings
+plt.rcParams.update({
+    # 'font.sans-serif': 'Comic Sans MS',
+    'font.family': 'serif',
+    'font.size': 12,
+    'text.usetex': False   
+})
 
 def save_checkpoint(model, optimizer, filename, learning_rate=None, epoch=None):
 
@@ -60,7 +69,6 @@ def val_loop(dataloader, model):
 
     return r2 / len(dataloader)
 
-
 def seed(seed=0):
     random.seed(seed)
     np.random.seed(seed)
@@ -69,7 +77,6 @@ def seed(seed=0):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
 
 class LoggerDecorator(object):
     def __init__(self, log_file, level=logging.INFO):
@@ -102,10 +109,15 @@ class LoggerDecorator(object):
         
         return wrapper
 
+def make_saving_path(root, format, name):
+    return os.path.join(root, f'{name}.{format}')
 
-def qqplot(ds_list, var, yax1='Depth (m)' ,axis_names=None, site_name=None, quantiles=None):
+def qqplot(ds_list, var, yax1='' ,axis_names=None, quantiles=None, save_figure=False, fformat=None, saving_path=None):
 
     ds = xr.open_mfdataset(ds_list)
+
+    weights = np.cos(np.deg2rad(ds.lat))
+    weights.name = "weights"
 
     if ds[var].ndim == 3:
         ds = ds.weighted(weights).mean(dim=("lat", "lon"))
@@ -131,19 +143,14 @@ def qqplot(ds_list, var, yax1='Depth (m)' ,axis_names=None, site_name=None, quan
     ax1.tick_params(axis='x', labelrotation=0, labelsize=12)
     ax1.set_ylabel(yax1)
     ax1.grid(True)
-    # ax1.set_title(f'BOX PLOT')
 
     x1 = np.sort(y_test)
     y1 = np.arange(1, len(y_test) + 1) / len(y_test)
-    # ax2.plot(x1, y1, linestyle='none', marker='o', alpha=0.2, label=y_test_name)
     ax2.plot(x1, y1, linestyle='-', alpha=0.8, label=y_test_name)
 
     x2 = np.sort(y_pred)
     y2 = np.arange(1, len(y_pred) + 1) / len(y_pred)
-    # ax1.plot(x2, y2, linestyle='none', marker='.', alpha=0.5, label='GT')
     ax2.plot(x2, y2, linestyle='-.', alpha=1, label=y_pred_name)
-
-    # ax2.set_title(f'ECDF')
     ax2.legend()
 
     if quantiles is None:
@@ -154,7 +161,6 @@ def qqplot(ds_list, var, yax1='Depth (m)' ,axis_names=None, site_name=None, quan
     y_quantiles = np.quantile(y_pred, quantiles, method='nearest')
 
     ax3.scatter(x_quantiles, y_quantiles)
-    # ax3.plot([0, 100], [0, 100], '--', color = 'black', linewidth=1.5)
 
     max_value = np.array((x_quantiles, y_quantiles)).max()
     min_value = np.array((x_quantiles, y_quantiles)).min()
@@ -162,15 +168,18 @@ def qqplot(ds_list, var, yax1='Depth (m)' ,axis_names=None, site_name=None, quan
 
     ax3.set_xlabel(y_test_name)
     ax3.set_ylabel(y_pred_name)
-    # ax3.set_title(f'Q-Q PLOT')
 
-    if site_name is not None:
-        plt.savefig(f'./{site_name}.pdf', format='pdf', bbox_inches='tight', pad_inches=0.05)
-
+    if save_figure:
+        plt.savefig(saving_path, format=f'{fformat}', bbox_inches='tight', pad_inches=0.1)
+    
     plt.show()
 
-def plot_global_ave(ds_list, var):
+
+def plot_global_ave(ds_list, var, save_figure=False, fformat=None, saving_path=None):
     ds = xr.open_mfdataset(ds_list)
+
+    weights = np.cos(np.deg2rad(ds.lat))
+    weights.name = "weights"
 
     if ds[var].ndim == 3:
         ds = ds.weighted(weights).mean(dim=("lat", "lon"))
@@ -196,7 +205,36 @@ def plot_global_ave(ds_list, var):
     ax2.set_xticklabels(month_names, rotation=45)
 
     # Add title for the entire subplot
-    plt.suptitle(fr'Input Variable: $\mathbf{{{var}}}$')
+    plt.suptitle(f'Input Variable: {var}')
 
     plt.legend()
+
+    if save_figure:
+        plt.savefig(saving_path, format=f'{fformat}', bbox_inches='tight', pad_inches=0.1)
+    
+    plt.show()
+
+def find_nearest(array, lat, lon):
+    array = np.asarray(array)
+    idx1 = (np.abs(array[:, 0] - lat)).argmin()
+    lat = array[idx1, 0]
+    
+    array = array[(array[:, 0] == lat)]
+    idx2 = (np.abs(array[:, 1] - lon)).argmin()
+    lon = array[idx2, 1]
+    return lat, lon
+
+def plot_on_grid(df, lat, lon):
+
+    lat, lon = find_nearest(df[['lat', 'lon']], lat, lon)
+
+    gdf = df.groupby(['lat', 'lon'])
+    g = gdf.get_group((lat, lon))
+    g = g.sort_values('time')
+    r2 = g['Coefficient of Determination'].iloc[0]
+    print(f'exact coordinates, lat:{lat}, lon:{lon}, R2: {r2:.2f}')
+    
+    fig, ax = plt.subplots(figsize=(20, 4))
+    g.set_index('time')[['Real Data', 'Model Output']].plot(ax=ax)
+   
     plt.show()
