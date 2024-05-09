@@ -15,7 +15,7 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
-from dataset import E33OMA
+from dataset import E33OMA, E33OMA90D
 from model import Discriminator, Generator, initialize_weights
 from utils import seed, load_checkpoint, save_checkpoint, val_loop, LoggerDecorator
 
@@ -29,14 +29,19 @@ def main(args):
     print(f"{args.model} is deployed on {torch.cuda.get_device_name(0)}")
     
     # Loading model
-    generator = Generator(in_channels=5, features=64).cuda()
+    generator = Generator(in_channels=args.in_channels, features=64).cuda()
     
     # Initializing the model weights
     initialize_weights(generator)
 
     # Dataloader
-    train_dataset = E33OMA(period='train', species=args.species, padding=args.input_size, transform=args.transform)
-    val_dataset   = E33OMA(period='val',   species=args.species, padding=args.input_size, transform=args.transform)
+    if args.dataset == 'E33OMA':
+        train_dataset = E33OMA(period='train', species=args.species, padding=args.input_size, transform=args.transform)
+        val_dataset   = E33OMA(period='val',   species=args.species, padding=args.input_size, transform=args.transform)
+    
+    if args.dataset == 'E33OMA90D':
+        train_dataset = E33OMA90D(period='train', species=args.species, padding=args.input_size, transform=args.transform)
+        val_dataset   = E33OMA90D(period='val',   species=args.species, padding=args.input_size, transform=args.transform)
 
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataloader   = DataLoader(val_dataset, batch_size=1, shuffle=True)
@@ -68,7 +73,7 @@ def main(args):
 
             # Training Generator            
             pred = generator(X)
-            pred = pred[:, :, :90, :144]
+            pred = pred[:, :, 83:83+90, 56:56+144]
             
             # Compute Loss Function
             loss = loss_func1(y, pred) + loss_func2(y, pred)
@@ -115,10 +120,12 @@ def main(args):
 
 
 def get_arguments(
-    MODEL='E33OMA-01',
+    MODEL='E33OMA-04',
     SPECIES='bcb',
     LEARNING_RATE=1.0E-04,
-    TRANSFORM=True,
+    DATASET='E33OMA90D',
+    IN_CHANNELS=5,
+    TRANSFORM=False,
     NUM_EPOCHS=50,
     INPUT_SIZE=256,
     BATCH_SIZE=4,
@@ -156,6 +163,10 @@ def get_arguments(
                         help=f"Name of aerosol species.")
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE,
                         help="Base learning rate for training with polynomial decay.")
+    parser.add_argument("--dataset", type=str, default=DATASET,
+                        help=f"The name of dataset.")
+    parser.add_argument("--in-channels", type=int, default=IN_CHANNELS,
+                        help="Number of input channels of the model.")
     parser.add_argument("--transform", action="store_true", default=TRANSFORM,
                         help="Whether to transform data for training.")
     parser.add_argument("--num-epochs", type=int, default=NUM_EPOCHS,
@@ -186,4 +197,3 @@ if __name__ == '__main__':
     wrapper_call = LoggerDecorator(os.path.join(args.snapshot_dir, 'logger.log'))
     wrapper = wrapper_call(main)
     wrapper(args)
-    
