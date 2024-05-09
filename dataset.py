@@ -32,20 +32,23 @@ class E33OMA(Dataset):
 
         # Convert `cftime.DatetimeNoLeap` to `pandas.to_datetime()`
         warnings.filterwarnings("ignore", message="Converting a CFTimeIndex with dates from a non-standard calendar")
-        datetimeindex = xr.open_mfdataset(list1[:365]).indexes['time'].to_datetimeindex()
+        ds = xr.open_mfdataset(list1)
+        datetimeindex = ds.indexes['time'].to_datetimeindex() # 365 x 2 x 48 -> 35040
+        self.lat = ds.indexes['lat']
+        self.lon = ds.indexes['lon']
 
-        idx = np.arange(len(datetimeindex))
+        idx = np.arange(35040 / 2) # 17520
         rng = np.random.default_rng(0)
         rng.shuffle(idx)
-        
-        if   self.period == 'train':
-            self.datetimeindex = datetimeindex[idx[:12264]]
+      
+        if self.period == 'train':
+            self.datetimeindex = datetimeindex[idx[:12264]] # 17520 x 0.7 -> 12264
         
         elif self.period == 'val':
-            self.datetimeindex = datetimeindex[idx[12264:]]
+            self.datetimeindex = datetimeindex[idx[12264:]] # 17520 x 0.3
         
         elif self.period == 'test':
-            self.datetimeindex = xr.open_mfdataset(list1[365:]).indexes['time'].to_datetimeindex()
+            self.datetimeindex = datetimeindex[17520:]
 
     def __getitem__(self, index):
         
@@ -151,3 +154,116 @@ class E33OMA(Dataset):
         
     def __len__(self):
         return len(self.datetimeindex)
+
+
+class E33OMA90D(Dataset):
+
+    def __init__(self, period, species, padding, transform=None, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
+        super(E33OMA90D, self).__init__()
+        
+        self.period  = period
+        self.species = species
+        self.padding = padding
+        self.transform = transform
+        self.root    = root
+        
+        self._get_data()
+    
+    
+    def _get_data(self):
+        
+        ds = xr.open_dataset(self.root)
+
+        self.lat = ds.indexes['lat']
+        self.lon = ds.indexes['lon']
+        
+        # Add negative lag for input features
+        X1 = np.expand_dims(ds['u'].isel(level=0)[1:, ...], axis=1)
+        X2 = np.expand_dims(ds['v'].isel(level=0)[1:, ...], axis=1)
+        X3 = np.expand_dims(ds['omega'].isel(level=0)[1:, ...], axis=1)
+        X4 = np.expand_dims(ds['prec'][1:, ...], axis=1)
+
+        if self.species == 'seasalt':
+            # Add positive lag for target variable
+            y  = np.expand_dims(ds['seasalt_conc'].isel(level=0)[1:, ...], axis=1) # (4319, 1, 90, 144)
+            X5 = np.expand_dims(ds['seasalt_src'][1:, ...], axis=1) # (4319, 1, 90, 144)
+            X6 = np.expand_dims(ds['seasalt_conc'].isel(level=0)[:-1, ...], axis=1) # (4319, 1, 90, 144) # previous time step
+        
+        if self.species == 'clay':
+            y  = np.expand_dims(ds['clay_conc'].isel(level=0)[1:, ...], axis=1)
+            X5 = np.expand_dims(ds['clay_src'][1:, ...], axis=1)
+            X6 = np.expand_dims(ds['clay_conc'].isel(level=0)[:-1, ...], axis=1)
+            
+        if self.species == 'bcb':
+            y  = np.expand_dims(ds['bcb_conc'].isel(level=0)[1:, ...], axis=1)
+            X5 = np.expand_dims(ds['bcb_src'][1:, ...], axis=1)
+            X6 = np.expand_dims(ds['bcb_conc'].isel(level=0)[:-1, ...], axis=1)
+        
+        idx = np.arange(3455) # train + validation
+        
+        rng = np.random.default_rng(0)
+        rng.shuffle(idx)
+        
+        if self.transform: 
+            
+            y    = np.ma.log10(y).filled(0.0)
+            # y    = np.where(y > np.quantile(y, .01), np.log10(y), y)
+            
+            X1 = np.ma.log10(X1).filled(0.0)
+            X2 = np.ma.log10(X2).filled(0.0)
+            X3 = np.ma.log10(X3).filled(0.0)
+            X4 = np.ma.log10(X4).filled(0.0)
+            X5 = np.ma.log10(X5).filled(0.0)
+            X6 = np.ma.log10(X6).filled(0.0)
+            
+        # X = np.concatenate((X1, X2, X3, X4, X5, X6), axis=1) # (4319, 6, 90, 144)
+        X = np.concatenate((X1, X2, X3, X4, X5), axis=1) # (4319, 5, 90, 144)
+                
+        self.y_mean = y[idx[:3023], ...].mean().reshape(-1, 1, 1)
+        self.y_std  = y[idx[:3023], ...].std().reshape(-1, 1, 1)
+        
+        self.X_mean = X[idx[:3023], ...].mean(axis=(0, 2, 3)).reshape(-1, 1, 1) 
+        self.X_std  = X[idx[:3023], ...].std(axis=(0, 2, 3)).reshape(-1, 1, 1)
+
+        if self.period == "train": # 70% of the total data
+            self.y = y[idx[:3023], ...]
+            self.X = X[idx[:3023], ...]
+            
+        elif self.period == "val": # 10% of the total data
+            self.y = y[idx[3023:3455], ...]
+            self.X = X[idx[3023:3455], ...]
+            
+        elif self.period == "test": # 20% of the total data
+            self.y = y[3455:, ...]
+            self.X = X[3455:, ...]
+            self.datetimeindex = ds.indexes['time'][3455 + 1:] # Add positive lag for target variable
+        
+    def __getitem__(self, index):
+        
+        X = self.X[index, ...]
+        y = self.y[index, ...]
+    
+        X = (X - self.X_mean) / self.X_std
+        y = (y - self.y_mean) / self.y_std
+               
+        X = torch.from_numpy(X) # torch image: C x H x W -> (5, 90, 144)
+        y = torch.from_numpy(y) # torch image: C x H x W -> (1, 90, 144)
+
+        if self.padding: # torch image: C x H x W -> (5, 255, 255)
+
+            # Define the amount of padding required
+            pad_left = (self.padding - 144) // 2  # Padding on the left side
+            pad_right = self.padding - 144 - pad_left  # Padding on the right side
+            pad_top = (self.padding - 90) // 2  # Padding on the top
+            pad_bottom = self.padding - 90 - pad_top  # Padding on the bottom
+
+            # Perform zero padding
+            X = torch.nn.functional.pad(X, (pad_left, pad_right, pad_top, pad_bottom), mode='constant', value=0)
+
+            # Perform circular padding
+            # X = torch.nn.functional.pad(X, (pad_left, pad_right, pad_top, pad_bottom), mode='circular')
+
+        return X, y
+        
+    def __len__(self):
+        return len(self.y)
