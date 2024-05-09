@@ -63,7 +63,7 @@ def val_loop(dataloader, model):
 
             # Compute prediction and loss
             pred = model(X)
-            pred = pred[:, :, :90, :144]
+            pred = pred[:, :, 83:83+90, 56:56+144]
             
             r2 += r2_score(y.detach().cpu().numpy().flatten(), pred.detach().cpu().numpy().flatten())
 
