@@ -12,12 +12,13 @@ import warnings
 
 class E33OMA(Dataset):
 
-    def __init__(self, period, species, padding, transform=None, root='/home/serfani/serfani_data0/E33OMA'):
+    def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data0/E33OMA'):
         super(E33OMA, self).__init__()
         
         self.period  = period
         self.species = species
         self.padding = padding
+        self.in_channels = in_channels
         self.transform = transform
         self.root    = root
         
@@ -158,12 +159,13 @@ class E33OMA(Dataset):
 
 class E33OMA90D(Dataset):
 
-    def __init__(self, period, species, padding, transform=None, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
+    def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
         super(E33OMA90D, self).__init__()
         
         self.period  = period
         self.species = species
         self.padding = padding
+        self.in_channels = in_channels
         self.transform = transform
         self.root    = root
         
@@ -206,8 +208,7 @@ class E33OMA90D(Dataset):
         
         if self.transform: 
             
-            y    = np.ma.log10(y).filled(0.0)
-            # y    = np.where(y > np.quantile(y, .01), np.log10(y), y)
+            y  = np.ma.log10(y).filled(0.0)
             
             X1 = np.ma.log10(X1).filled(0.0)
             X2 = np.ma.log10(X2).filled(0.0)
@@ -215,9 +216,12 @@ class E33OMA90D(Dataset):
             X4 = np.ma.log10(X4).filled(0.0)
             X5 = np.ma.log10(X5).filled(0.0)
             X6 = np.ma.log10(X6).filled(0.0)
-            
-        # X = np.concatenate((X1, X2, X3, X4, X5, X6), axis=1) # (4319, 6, 90, 144)
-        X = np.concatenate((X1, X2, X3, X4, X5), axis=1) # (4319, 5, 90, 144)
+        
+        if self.in_channels == 5:
+            X = np.concatenate((X1, X2, X3, X4, X5), axis=1) # (4319, 5, 90, 144)
+        
+        if self.in_channels == 6:  
+            X = np.concatenate((X1, X2, X3, X4, X5, X6), axis=1) # (4319, 6, 90, 144)
                 
         self.y_mean = y[idx[:3023], ...].mean().reshape(-1, 1, 1)
         self.y_std  = y[idx[:3023], ...].std().reshape(-1, 1, 1)
