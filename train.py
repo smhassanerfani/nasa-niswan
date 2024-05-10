@@ -36,12 +36,12 @@ def main(args):
 
     # Dataloader
     if args.dataset == 'E33OMA':
-        train_dataset = E33OMA(period='train', species=args.species, padding=args.input_size, transform=args.transform)
-        val_dataset   = E33OMA(period='val',   species=args.species, padding=args.input_size, transform=args.transform)
+        train_dataset = E33OMA(period='train', species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
+        val_dataset   = E33OMA(period='val',   species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
     
     if args.dataset == 'E33OMA90D':
-        train_dataset = E33OMA90D(period='train', species=args.species, padding=args.input_size, transform=args.transform)
-        val_dataset   = E33OMA90D(period='val',   species=args.species, padding=args.input_size, transform=args.transform)
+        train_dataset = E33OMA90D(period='train', species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
+        val_dataset   = E33OMA90D(period='val',   species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
 
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataloader   = DataLoader(val_dataset, batch_size=1, shuffle=True)
@@ -120,12 +120,12 @@ def main(args):
 
 
 def get_arguments(
-    MODEL='E33OMA-04',
+    MODEL='E33OMA-05',
     SPECIES='bcb',
     LEARNING_RATE=1.0E-04,
     DATASET='E33OMA90D',
     IN_CHANNELS=5,
-    TRANSFORM=False,
+    TRANSFORM=True,
     NUM_EPOCHS=50,
     INPUT_SIZE=256,
     BATCH_SIZE=4,
