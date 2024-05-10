@@ -38,7 +38,7 @@ class E33OMA(Dataset):
         self.lat = ds.indexes['lat']
         self.lon = ds.indexes['lon']
 
-        idx = np.arange(35040 / 2) # 17520
+        idx = np.arange(int(35040 / 2)) # 17520
         rng = np.random.default_rng(0)
         rng.shuffle(idx)
       
