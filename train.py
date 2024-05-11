@@ -120,41 +120,22 @@ def main(args):
 
 
 def get_arguments(
-    MODEL='E33OMA-05',
+    MODEL='E33OMA-00',
     SPECIES='bcb',
     LEARNING_RATE=1.0E-04,
-    DATASET='E33OMA90D',
+    DATASET='E33OMA',
     IN_CHANNELS=5,
-    TRANSFORM=True,
+    TRANSFORM=False,
     NUM_EPOCHS=50,
     INPUT_SIZE=256,
     BATCH_SIZE=4,
     NUM_WORKERS=1,
     SCHEDULER_STEP=10,
-    BETAS = (0.5, 0.999),  # Default values for Adam optimizer
-    USE_CHECKPOINT = False
+    BETAS=(0.5, 0.999),
+    USE_CHECKPOINT=False
 ):
     SNAPSHOT_DIR = os.path.join('/home/serfani/serfani_data0/snapshots', MODEL)
     RESTORE_FROM = os.path.join('/home/serfani/serfani_data0/snapshots', MODEL)
-
-    try:
-        os.makedirs(SNAPSHOT_DIR)
-
-    except FileExistsError:
-        pass
-
-    print('Working Directory:', SNAPSHOT_DIR)
-
-    # Get the names and default values of input arguments
-    arguments = inspect.signature(get_arguments).parameters
-    defaults = {arg_name: param.default for arg_name, param in arguments.items()}
-
-    defaults['SNAPSHOT_DIR'] = SNAPSHOT_DIR
-    defaults['RESTORE_FROM'] = RESTORE_FROM
-
-    # Dump the default arguments into a JSON file
-    with open(os.path.join(SNAPSHOT_DIR, 'configurations.json'), 'w') as outfile:
-        json.dump(defaults, outfile, indent=4)
 
     parser = argparse.ArgumentParser(description=f"Training {MODEL} on E33OMA.")
     parser.add_argument("--model", type=str, default=MODEL,
@@ -187,6 +168,25 @@ def get_arguments(
                         help="Where to save snapshots of the model.")
     parser.add_argument("--restore-from", type=str, default=RESTORE_FROM,
                         help="Where to restore the model parameters.")
+    
+    try:
+        os.makedirs(SNAPSHOT_DIR)
+
+    except FileExistsError:
+        pass
+
+    print('Working Directory:', SNAPSHOT_DIR)
+
+    # Get the names and default values of input arguments
+    arguments = inspect.signature(get_arguments).parameters
+    defaults = {arg_name: param.default for arg_name, param in arguments.items()}
+
+    defaults['SNAPSHOT_DIR'] = SNAPSHOT_DIR
+    defaults['RESTORE_FROM'] = RESTORE_FROM
+
+    # Dump the default arguments into a JSON file
+    with open(os.path.join(SNAPSHOT_DIR, 'configurations.json'), 'w') as outfile:
+        json.dump(defaults, outfile, indent=4)
 
     return parser.parse_args()
 
