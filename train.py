@@ -132,11 +132,11 @@ def get_arguments(
     NUM_WORKERS=1,
     SCHEDULER_STEP=10,
     BETAS=(0.5, 0.999),
-    USE_CHECKPOINT=False
+    USE_CHECKPOINT=False,
+    SNAPSHOT_DIR='./',
+    RESTORE_FROM='./'
 ):
-    SNAPSHOT_DIR = os.path.join('/home/serfani/serfani_data0/snapshots', MODEL)
-    RESTORE_FROM = os.path.join('/home/serfani/serfani_data0/snapshots', MODEL)
-
+    
     parser = argparse.ArgumentParser(description=f"Training {MODEL} on E33OMA.")
     parser.add_argument("--model", type=str, default=MODEL,
                         help=f"Model Name: {MODEL}")
@@ -169,26 +169,24 @@ def get_arguments(
     parser.add_argument("--restore-from", type=str, default=RESTORE_FROM,
                         help="Where to restore the model parameters.")
     
+    args = parser.parse_args()
+
     try:
-        os.makedirs(SNAPSHOT_DIR)
+        os.makedirs(args.snapshot_dir)
 
     except FileExistsError:
         pass
 
-    print('Working Directory:', SNAPSHOT_DIR)
+    print('Working Directory:', args.snapshot_dir)
 
-    # Get the names and default values of input arguments
-    arguments = inspect.signature(get_arguments).parameters
-    defaults = {arg_name: param.default for arg_name, param in arguments.items()}
-
-    defaults['SNAPSHOT_DIR'] = SNAPSHOT_DIR
-    defaults['RESTORE_FROM'] = RESTORE_FROM
-
-    # Dump the default arguments into a JSON file
-    with open(os.path.join(SNAPSHOT_DIR, 'configurations.json'), 'w') as outfile:
-        json.dump(defaults, outfile, indent=4)
-
-    return parser.parse_args()
+    # Collect arguments into a dictionary
+    args_dict = vars(args)
+    
+    # Dump the dictionary into a JSON file
+    with open(os.path.join(args.snapshot_dir, 'configurations.json'), "w") as f:
+        json.dump(args_dict, f, indent=4)
+    
+    return args
 
 
 if __name__ == '__main__':
