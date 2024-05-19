@@ -25,7 +25,6 @@ python train.py \
     --restore-from /home/serfani/serfani_data0/snapshots/$MODEL \
     # --transform \
     # --use-checkpoint \
-    > /home/serfani/serfani_data0/snapshots/$MODEL/run_print.txt
 
 # Deactivate the virtual environment
 deactivate
