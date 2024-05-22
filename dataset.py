@@ -20,7 +20,7 @@ class E33OMA(Dataset):
         self.padding = padding
         self.in_channels = in_channels
         self.transform = transform
-        self.root    = root
+        self.root = root
         
         self._get_data_index()
     
@@ -34,7 +34,8 @@ class E33OMA(Dataset):
         # Convert `cftime.DatetimeNoLeap` to `pandas.to_datetime()`
         warnings.filterwarnings("ignore", message="Converting a CFTimeIndex with dates from a non-standard calendar")
         ds = xr.open_mfdataset(list1)
-        datetimeindex = ds.indexes['time'].to_datetimeindex() # 365 x 2 x 48 -> 35040
+        datetimeindex1 = ds.indexes['time'].to_datetimeindex()[1:]  # 365 x 2 x 48 -> 35040
+        datetimeindex2 = ds.indexes['time'].to_datetimeindex()[:-1] # 365 x 2 x 48 -> 35040
         self.lat = ds.indexes['lat']
         self.lon = ds.indexes['lon']
 
@@ -43,29 +44,33 @@ class E33OMA(Dataset):
         rng.shuffle(idx)
       
         if self.period == 'train':
-            self.datetimeindex = datetimeindex[idx[:12264]] # 17520 x 0.7 -> 12264
+            self.datetimeindex1 = datetimeindex1[idx[:12264]] # 17520 x 0.7 -> 12264
+            self.datetimeindex2 = datetimeindex2[idx[:12264]] # 17520 x 0.7 -> 12264
         
         elif self.period == 'val':
-            self.datetimeindex = datetimeindex[idx[12264:]] # 17520 x 0.3
+            self.datetimeindex1 = datetimeindex1[idx[12264:]] # 17520 x 0.3
+            self.datetimeindex2 = datetimeindex2[idx[12264:]] # 17520 x 0.3
         
         elif self.period == 'test':
-            self.datetimeindex = datetimeindex[17520:]
+            self.datetimeindex1 = datetimeindex1[17520:] # 17520 - 1
+            self.datetimeindex2 = datetimeindex2[17520:] # 17520 - 1
 
     def __getitem__(self, index):
         
-        timestep = self.datetimeindex[index].strftime('%Y%m%d')
+        timestep1 = self.datetimeindex1[index].strftime('%Y%m%d')
+        timestep2 = self.datetimeindex2[index].strftime('%Y%m%d')
         
-        ds1 = xr.open_dataset(os.path.join(self.root, f'{timestep}.aijlh1E33oma_ai.nc'))
+        ds1 = xr.open_dataset(os.path.join(self.root, f'{timestep1}.aijlh1E33oma_ai.nc'))
         ds1['time'] = ds1.indexes['time'].to_datetimeindex()
         
-        ds2 = xr.open_dataset(os.path.join(self.root, f'{timestep}.cijh1E33oma_ai.nc'))
+        ds2 = xr.open_dataset(os.path.join(self.root, f'{timestep1}.cijh1E33oma_ai.nc'))
         ds2['time'] = ds2.indexes['time'].to_datetimeindex()
 
-        X1 = np.expand_dims(ds1['u'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
-        X2 = np.expand_dims(ds1['v'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
-        X3 = np.expand_dims(ds1['omega'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+        X1 = np.expand_dims(ds1['u'].isel(level=0).sel(time=self.datetimeindex1[index]), axis=0)
+        X2 = np.expand_dims(ds1['v'].isel(level=0).sel(time=self.datetimeindex1[index]), axis=0)
+        X3 = np.expand_dims(ds1['omega'].isel(level=0).sel(time=self.datetimeindex1[index]), axis=0)
 
-        X4 = np.expand_dims(ds2['prec'].sel(time=self.datetimeindex[index]), axis=0)
+        X4 = np.expand_dims(ds2['prec'].sel(time=self.datetimeindex1[index]), axis=0)
 
         with open('variable_statistics.json', 'r') as jf:
             data = json.load(jf)
@@ -83,76 +88,128 @@ class E33OMA(Dataset):
 
         if self.species == 'seasalt':
             # Add positive lag for target variable
-            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep}.taijh1E33oma_ai.nc'))
+            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep1}.taijh1E33oma_ai.nc'))
             ds3['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep}.taijlh1E33oma_ai.nc'))
+            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep1}.taijlh1E33oma_ai.nc'))
             ds4['time'] = ds4.indexes['time'].to_datetimeindex()
 
-            X5 = np.expand_dims(ds3['seasalt1_ocean_src'].sel(time=self.datetimeindex[index]), axis=0)
-            y  = np.expand_dims(ds4['seasalt1'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+            ds5 = xr.open_dataset(os.path.join(self.root, f'{timestep2}.taijlh1E33oma_ai.nc'))
+            ds5['time'] = ds5.indexes['time'].to_datetimeindex()
+
+            X5 = np.expand_dims(ds3['seasalt1_ocean_src'].sel(time=self.datetimeindex1[index]), axis=0)
+            y  = np.expand_dims(ds4['seasalt1'].isel(level=0).sel(time=self.datetimeindex1[index]), axis=0)
+
+            X6 = np.expand_dims(ds5['seasalt1'].isel(level=0).sel(time=self.datetimeindex2[index]), axis=0)
 
             X5_mean = vs['ss_src']['mean']; X5_std = vs['ss_src']['std']
             y_mean  = vs['ss_conc']['mean']; y_std = vs['ss_conc']['std']
 
         if self.species == 'clay':
             # Add positive lag for target variable
-            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep}.tNDaijh1E33oma_ai.nc'))
+            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep1}.tNDaijh1E33oma_ai.nc'))
             ds3['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep}.taijlh1E33oma_ai.nc'))
+            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep1}.taijlh1E33oma_ai.nc'))
             ds4['time'] = ds4.indexes['time'].to_datetimeindex()
 
-            X5 = np.expand_dims(ds3['Clay_emission'].sel(time=self.datetimeindex[index]), axis=0)
-            y  = np.expand_dims(ds4['Clay'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+            ds5 = xr.open_dataset(os.path.join(self.root, f'{timestep2}.taijlh1E33oma_ai.nc'))
+            ds5['time'] = ds5.indexes['time'].to_datetimeindex()
+
+            X5 = np.expand_dims(ds3['Clay_emission'].sel(time=self.datetimeindex1[index]), axis=0)
+            y  = np.expand_dims(ds4['Clay'].isel(level=0).sel(time=self.datetimeindex1[index]), axis=0)
+
+            X6 = np.expand_dims(ds5['Clay'].isel(level=0).sel(time=self.datetimeindex2[index]), axis=0)
 
             X5_mean = vs['c_src']['mean']; X5_std = vs['c_src']['std']
             y_mean  = vs['c_conc']['mean']; y_std = vs['c_conc']['std']
 
         if self.species == 'bcb':
             # Add positive lag for target variable
-            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep}.tNDaijh1E33oma_ai.nc'))
+            ds3 = xr.open_dataset(os.path.join(self.root, f'{timestep1}.tNDaijh1E33oma_ai.nc'))
             ds3['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep}.taijlh1E33oma_ai.nc'))
+            ds4 = xr.open_dataset(os.path.join(self.root, f'{timestep1}.taijlh1E33oma_ai.nc'))
             ds4['time'] = ds4.indexes['time'].to_datetimeindex()
 
-            X5 = np.expand_dims(ds3['BCB_biomass_src'].sel(time=self.datetimeindex[index]), axis=0)
-            y  = np.expand_dims(ds4['BCB'].isel(level=0).sel(time=self.datetimeindex[index]), axis=0)
+            ds5 = xr.open_dataset(os.path.join(self.root, f'{timestep2}.taijlh1E33oma_ai.nc'))
+            ds5['time'] = ds5.indexes['time'].to_datetimeindex()
+
+            X5 = np.expand_dims(ds3['BCB_biomass_src'].sel(time=self.datetimeindex1[index]), axis=0)
+            y  = np.expand_dims(ds4['BCB'].isel(level=0).sel(time=self.datetimeindex1[index]), axis=0)
+
+            X6 = np.expand_dims(ds5['BCB'].isel(level=0).sel(time=self.datetimeindex2[index]), axis=0)
 
             X5_mean = vs['bc_src']['mean']; X5_std = vs['bc_src']['std']
             y_mean  = vs['bc_conc']['mean']; y_std = vs['bc_conc']['std']
 
+        if self.in_channels == 5:
+            X = np.concatenate((X1, X2, X3, X4, X5), axis=0)  # (5, 90, 144)
 
-        X = np.concatenate((X1, X2, X3, X4, X5), axis=0)  # (5, 90, 144)
+            if self.transform:
+                X = np.ma.log10(X).filled(0.0)
+                y = np.ma.log10(y).filled(0.0)
 
-        if self.transform:
-            X = np.ma.log10(X).filled(0.0)
-            y = np.ma.log10(y).filled(0.0)
-
-        Xs_mean = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(-1, 1, 1)
-        Xs_std  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(-1, 1, 1)
- 
-        self.y_mean = np.array(y_mean, dtype=np.float32).reshape(-1, 1, 1)
-        self.y_std  = np.array(y_std, dtype=np.float32).reshape(-1, 1, 1)
+            Xs_mean = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(-1, 1, 1)
+            Xs_std  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(-1, 1, 1)
+    
+            self.y_mean = np.array(y_mean, dtype=np.float32).reshape(-1, 1, 1)
+            self.y_std  = np.array(y_std, dtype=np.float32).reshape(-1, 1, 1)
         
+        elif self.in_channels == 6:
+            X = np.concatenate((X1, X2, X3, X4, X5, X6), axis=0)  # (6, 90, 144)
+
+            if self.transform:
+                X = np.ma.log10(X).filled(0.0)
+                y = np.ma.log10(y).filled(0.0)
+
+            Xs_mean = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean, y_mean), dtype=np.float32).reshape(-1, 1, 1)
+            Xs_std  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std, y_std), dtype=np.float32).reshape(-1, 1, 1)
+    
+            self.y_mean = np.array(y_mean, dtype=np.float32).reshape(-1, 1, 1)
+            self.y_std  = np.array(y_std, dtype=np.float32).reshape(-1, 1, 1)
+            
         X = (X - Xs_mean) / Xs_std
         y = (y -  self.y_mean) / self.y_std
 
-        if self.padding:
-            w = X.shape[2] # width
-            h = X.shape[1] # height
-            
-            top_pad   = self.padding - h
-            right_pad = self.padding - w
-            
-            X = np.lib.pad(X, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
+        if self.padding: # torch image: C x H x W -> (5, 256, 256)
+            X = self._padding_data(X)
         
         X = torch.from_numpy(X).type(torch.float32) # torch image: C x H x W
         y = torch.from_numpy(y).type(torch.float32) # torch image: C x H x W
 
         return X, y
+    
+    def _cyclic_padding(self, data):
         
+        # Define the amount of padding required
+        pad_left = (self.padding - 144) // 2  # Padding on the left side
+        pad_right = self.padding - 144 - pad_left  # Padding on the right side
+
+        # Cyclically extend data along the longitude
+        return np.concatenate([data[..., -pad_left:], data, data[..., :pad_right]], axis=2)
+
+    def _reflective_padding(self, data):
+
+        # Define the amount of padding required
+        pad_top = (self.padding - 90) // 2  # Padding on the top
+        pad_bottom = self.padding - 90 - pad_top  # Padding on the bottom
+
+        pad_top += 1
+        pad_bottom += 1
+        # Reflect data at the latitude boundaries
+        return np.concatenate((np.fliplr(data[:, 1:pad_top]), data, np.fliplr(data[:, -pad_bottom:-1])), axis=1)
+
+    def _padding_data(self, data):
+        data = self._cyclic_padding(data)
+        data = self._reflective_padding(data)
+        return data
+    
+    def __getattr__(self, name):
+        if name == 'datetimeindex':
+            return self.datetimeindex1
+        raise AttributeError(f"'Library' object has no attribute '{name}'")
+
     def __len__(self):
         return len(self.datetimeindex)
 
@@ -167,7 +224,7 @@ class E33OMA90D(Dataset):
         self.padding = padding
         self.in_channels = in_channels
         self.transform = transform
-        self.root    = root
+        self.root = root
         
         self._get_data()
     
@@ -250,24 +307,49 @@ class E33OMA90D(Dataset):
         X = (X - self.X_mean) / self.X_std
         y = (y - self.y_mean) / self.y_std
                
-        X = torch.from_numpy(X) # torch image: C x H x W -> (5, 90, 144)
-        y = torch.from_numpy(y) # torch image: C x H x W -> (1, 90, 144)
-
         if self.padding: # torch image: C x H x W -> (5, 255, 255)
-
-            # Define the amount of padding required
-            pad_left = (self.padding - 144) // 2  # Padding on the left side
-            pad_right = self.padding - 144 - pad_left  # Padding on the right side
-            pad_top = (self.padding - 90) // 2  # Padding on the top
-            pad_bottom = self.padding - 90 - pad_top  # Padding on the bottom
-
-            # Perform zero padding
-            X = torch.nn.functional.pad(X, (pad_left, pad_right, pad_top, pad_bottom), mode='constant', value=0)
-
-            # Perform circular padding
-            # X = torch.nn.functional.pad(X, (pad_left, pad_right, pad_top, pad_bottom), mode='circular')
+            X = self._padding_data(X)
+        
+        X = torch.from_numpy(X).type(torch.float32) # torch image: C x H x W
+        y = torch.from_numpy(y).type(torch.float32) # torch image: C x H x W
 
         return X, y
+    
+    def _cyclic_padding(self, data):
+        
+        # Define the amount of padding required
+        pad_left = (self.padding - 144) // 2  # Padding on the left side
+        pad_right = self.padding - 144 - pad_left  # Padding on the right side
+
+        # Cyclically extend data along the longitude
+        return np.concatenate([data[..., -pad_left:], data, data[..., :pad_right]], axis=2)
+
+    def _reflective_padding(self, data):
+
+        # Define the amount of padding required
+        pad_top = (self.padding - 90) // 2  # Padding on the top
+        pad_bottom = self.padding - 90 - pad_top  # Padding on the bottom
+
+        pad_top += 1
+        pad_bottom += 1
+        # Reflect data at the latitude boundaries
+        return np.concatenate((np.fliplr(data[:, 1:pad_top]), data, np.fliplr(data[:, -pad_bottom:-1])), axis=1) 
+
+    def _padding_data(self, data):
+        data = self._cyclic_padding(data)
+        data = self._reflective_padding(data)
+        return data
         
     def __len__(self):
         return len(self.y)
+
+if __name__ == '__main__':
+    
+    dataset = E33OMA(period='test', species='bcb', padding=256, in_channels=6, transform=None)
+    dataiter = iter(dataset)
+    
+    X, y = next(dataiter)
+    
+    print(len(dataset))
+    print(X.shape, y.shape)
+    print(dataset.datetimeindex)
