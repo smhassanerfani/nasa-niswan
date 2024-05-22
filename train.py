@@ -16,7 +16,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
 from dataset import E33OMA, E33OMA90D
-from model import Discriminator, Generator, initialize_weights
+from model import Discriminator, Generator, UNet, initialize_weights
 from utils import seed, load_checkpoint, save_checkpoint, val_loop, LoggerDecorator
 
 
@@ -29,7 +29,11 @@ def main(args):
     print(f"{args.model} is deployed on {torch.cuda.get_device_name(0)}")
     
     # Loading model
-    generator = Generator(in_channels=args.in_channels, features=64).cuda()
+    if args.model.split('-')[0] == 'PIX2PIX':
+        generator = Generator(in_channels=args.in_channels, features=64).cuda()
+    
+    elif args.model.split('-')[0] == 'UNet':
+        generator = UNet(in_channels=args.in_channels).cuda()
     
     # Initializing the model weights
     initialize_weights(generator)
