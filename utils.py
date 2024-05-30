@@ -49,7 +49,7 @@ def load_checkpoint(checkpoint_file, model, optimizer=None, lr=None):
             for param_group in optimizer.param_groups:
                 param_group['lr'] = checkpoint['learning_rate']
 
-def val_loop(dataloader, model):
+def val_loop(args, dataloader, model):
 
     model.eval()
     r2 = 0.0
@@ -63,7 +63,12 @@ def val_loop(dataloader, model):
 
             # Compute prediction and loss
             pred = model(X)
-            pred = pred[:, :, 83:83+90, 56:56+144]
+
+            if args.model.split('-')[0] in ['PIX2PIX', 'UNet']:
+                pred = pred[:, :, 83:83+90, 56:56+144]
+            
+            elif args.model.split('-')[0] in ['LSTM']:
+                pred = pred[0].squeeze()
             
             r2 += r2_score(y.detach().cpu().numpy().flatten(), pred.detach().cpu().numpy().flatten())
 
