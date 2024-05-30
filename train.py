@@ -15,8 +15,8 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
-from dataset import E33OMA, E33OMA90D
-from model import Discriminator, Generator, UNet, initialize_weights
+from dataset import E33OMA, E33OMA90D, E33OMA_CRNN, E33OMA90D_CRNN
+from model import Discriminator, Generator, UNet, ConvLSTMCell, ConvLSTM, initialize_weights
 from utils import seed, load_checkpoint, save_checkpoint, val_loop, LoggerDecorator
 
 
@@ -31,13 +31,19 @@ def main(args):
     # Loading model
     if args.model.split('-')[0] == 'PIX2PIX':
         generator = Generator(in_channels=args.in_channels, features=64).cuda()
-    
+        
+        # Initializing the model weights
+        initialize_weights(generator)
+
     elif args.model.split('-')[0] == 'UNet':
         generator = UNet(in_channels=args.in_channels).cuda()
-    
-    # Initializing the model weights
-    initialize_weights(generator)
 
+        # Initializing the model weights
+        initialize_weights(generator)
+    
+    elif args.model.split('-')[0] == 'LSTM':
+        generator = ConvLSTM(args.in_channels, args.hidden_channels, args.kernel_size, args.num_layers).cuda()
+    
     # Dataloader
     if args.dataset == 'E33OMA':
         train_dataset = E33OMA(period='train', species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
@@ -46,6 +52,14 @@ def main(args):
     if args.dataset == 'E33OMA90D':
         train_dataset = E33OMA90D(period='train', species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
         val_dataset   = E33OMA90D(period='val',   species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
+
+    if args.dataset == 'E33OMA-CRNN':
+        train_dataset = E33OMA_CRNN(period='train', species=args.species, sequence_length=args.sequence_length)
+        val_dataset   = E33OMA_CRNN(period='val',   species=args.species, sequence_length=args.sequence_length)
+    
+    if args.dataset == 'E33OMA90D-CRNN':
+        train_dataset = E33OMA90D_CRNN(period='train', species=args.species, sequence_length=args.sequence_length)
+        val_dataset   = E33OMA90D_CRNN(period='val',   species=args.species, sequence_length=args.sequence_length)
 
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataloader   = DataLoader(val_dataset, batch_size=1, shuffle=True)
@@ -77,7 +91,12 @@ def main(args):
 
             # Training Generator            
             pred = generator(X)
-            pred = pred[:, :, 83:83+90, 56:56+144]
+
+            if args.model.split('-')[0] in ['PIX2PIX', 'UNet']:
+                pred = pred[:, :, 83:83+90, 56:56+144]
+            
+            elif args.model.split('-')[0] in ['LSTM']:
+                pred = pred[0].squeeze()
             
             # Compute Loss Function
             loss = loss_func1(y, pred) + loss_func2(y, pred)
@@ -97,7 +116,7 @@ def main(args):
         
         scheduler.step()
         
-        logger['r2_score_val'].append(val_loop(val_dataloader, generator))
+        logger['r2_score_val'].append(val_loop(args, val_dataloader, generator))
         
         print(f"Epoch: {epoch}, Loss: {logger['MSELoss'][-1]:.5f}, R2T: {logger['r2_score'][-1]:.5f}, R2V: {logger['r2_score_val'][-1]:.5f}")
         
@@ -129,6 +148,10 @@ def get_arguments(
     LEARNING_RATE=1.0E-04,
     DATASET='E33OMA',
     IN_CHANNELS=5,
+    HIDDEN_CHANNELS=10,
+    KERNEL_SIZE=3,
+    NUM_LAYERS=3,
+    SEQUENCE_LENGTH=48,
     TRANSFORM=False,
     NUM_EPOCHS=50,
     INPUT_SIZE=256,
@@ -152,6 +175,14 @@ def get_arguments(
                         help=f"The name of dataset.")
     parser.add_argument("--in-channels", type=int, default=IN_CHANNELS,
                         help="Number of input channels of the model.")
+    parser.add_argument("--hidden-channels", type=int, default=HIDDEN_CHANNELS,
+                        help="Number of hidden channels of the RNN model.")
+    parser.add_argument("--kernel-size", type=int, default=KERNEL_SIZE,
+                        help="Kernel size of convolution layers of RNN.")
+    parser.add_argument("--num-layers", type=int, default=NUM_LAYERS,
+                        help="Number of LSTM cells of the RNN model.")
+    parser.add_argument("--sequence-length", type=int, default=SEQUENCE_LENGTH,
+                        help="Sequence length of the data for RNN model.")
     parser.add_argument("--transform", action="store_true", default=TRANSFORM,
                         help="Whether to transform data for training.")
     parser.add_argument("--num-epochs", type=int, default=NUM_EPOCHS,
