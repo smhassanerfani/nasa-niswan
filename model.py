@@ -193,6 +193,77 @@ class UNet(nn.Module):
         return x
 
 
+class ConvLSTMCell(nn.Module):
+    def __init__(self, input_channels, hidden_channels, kernel_size):
+        super(ConvLSTMCell, self).__init__()
+        self.input_channels = input_channels
+        self.hidden_channels = hidden_channels
+        self.kernel_size = kernel_size 
+        
+        self.conv = nn.Conv2d(input_channels + hidden_channels, 4 * hidden_channels, kernel_size, padding=kernel_size // 2)
+        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+
+    def forward(self, x, hidden_state):
+        h, c = hidden_state
+        combined = torch.cat([x, h], dim=1)
+        gates = self.conv(combined)
+        
+        ingate, forgetgate, cellgate, outgate = torch.split(gates, gates.size(1) // 4, dim=1)
+
+        ingate     = self.sigmoid(ingate)
+        forgetgate = self.sigmoid(forgetgate)
+        cellgate   = self.tanh(cellgate)
+        outgate    = self.sigmoid(outgate)
+
+        c = c * forgetgate + ingate * cellgate
+        h = outgate * self.tanh(c)
+
+        return h, c
+
+
+class ConvLSTM(nn.Module):
+    def __init__(self, input_channels, hidden_channels, kernel_size, num_layers):
+        super(ConvLSTM, self).__init__()
+        self.num_layers = num_layers
+
+        # Create a list of ConvLSTM cells
+        self.layers = nn.ModuleList()
+        
+        # Add the first layer
+        self.layers.append(ConvLSTMCell(input_channels, hidden_channels, kernel_size))
+        
+        # Add subsequent layers
+        for _ in range(1, num_layers):
+            self.layers.append(ConvLSTMCell(hidden_channels, hidden_channels, kernel_size))
+
+        # Bottleneck layer
+        self.conv  = nn.Conv2d(hidden_channels, 1, kernel_size=1)
+
+    def forward(self, x):
+        # Assuming x is a sequence of frames: (batch_size, sequence_length, channels, height, width)
+        batch_size, seq_len, _, height, width = x.size()
+        
+        # Initialize hidden and cell states for each layer
+        hidden_states = []
+        for _ in range(self.num_layers):
+            h = torch.zeros(batch_size, self.layers[0].hidden_channels, height, width).to(x.device)
+            c = torch.zeros(batch_size, self.layers[0].hidden_channels, height, width).to(x.device)
+            hidden_states.append((h, c))
+
+        outputs = []
+        for t in range(seq_len):
+            x_t = x[:, t, :, :, :]
+            for layer_idx in range(self.num_layers):
+                h, c = hidden_states[layer_idx]
+                h, c = self.layers[layer_idx](x_t, (h, c))
+                hidden_states[layer_idx] = (h, c)
+                x_t = h  # Output of the current layer is the input to the next layer
+            outputs.append(h.unsqueeze(1))
+
+        return self.conv(h), torch.cat(outputs, dim=1)    
+
+
 def initialize_weights(model):
     for m in model.modules():
         if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
