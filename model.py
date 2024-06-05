@@ -194,23 +194,34 @@ class UNet(nn.Module):
 
 
 class ConvLSTMCell(nn.Module):
-    def __init__(self, input_channels, hidden_channels, kernel_size):
+    def __init__(self, input_channels, hidden_channels, kernel_size, bias=False):
         super(ConvLSTMCell, self).__init__()
+
         self.input_channels = input_channels
         self.hidden_channels = hidden_channels
-        self.kernel_size = kernel_size 
+
+        self.kernel_size = kernel_size
+        self.padding = kernel_size // 2
+        self.bias = bias
+
+        self.conv = nn.Conv2d(in_channels=self.input_channels + self.hidden_channels,
+                              out_channels=4 * self.hidden_channels,
+                              kernel_size=self.kernel_size,
+                              padding=self.padding,
+                              bias=self.bias)
         
-        self.conv = nn.Conv2d(input_channels + hidden_channels, 4 * hidden_channels, kernel_size, padding=kernel_size // 2)
+        self.batch_norm = nn.BatchNorm2d(4 * self.hidden_channels)
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
 
     def forward(self, x, hidden_state):
         h, c = hidden_state
+
         combined = torch.cat([x, h], dim=1)
         gates = self.conv(combined)
+        gates = self.batch_norm(gates)  # Apply BatchNorm
+        ingate, forgetgate, cellgate, outgate  = torch.split(gates, self.hidden_channels, dim=1)
         
-        ingate, forgetgate, cellgate, outgate = torch.split(gates, gates.size(1) // 4, dim=1)
-
         ingate     = self.sigmoid(ingate)
         forgetgate = self.sigmoid(forgetgate)
         cellgate   = self.tanh(cellgate)
