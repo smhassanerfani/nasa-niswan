@@ -10,15 +10,98 @@ import torchvision.transforms as T
 
 import warnings
 
+class E33OMAPAD(Dataset):
 
-class E33OMA(Dataset):
-
-    def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data0/E33OMA'):
-        super(E33OMA, self).__init__()
+    def __init__(self, period, species, padding):
+        super(E33OMAPAD, self).__init__()
         
         self.period  = period
         self.species = species
         self.padding = padding
+
+    def _cyclic_padding(self, data):
+    
+        W = data.shape[2] # longitude
+
+        # Define the amount of padding required
+        pad_left = (self.padding[1] - W) // 2  # Padding on the left side
+        pad_right = self.padding[1] - W - pad_left  # Padding on the right side
+
+        if (pad_left <= W) and (pad_right <= W):
+            
+            # Cyclically extend data along the longitude
+            return np.concatenate([data[..., -pad_left:], data, data[..., :pad_right]], axis=2)
+        
+        raise AttributeError(f"The requested padding size is larger than width size of the input image.")
+
+    def _reflective_padding(self, data):
+
+        H = data.shape[1] # latitude
+        
+        # Define the amount of padding required
+        pad_top = (self.padding[0] - H) // 2  # Padding on the top
+        pad_bottom = self.padding[0] - H - pad_top  # Padding on the bottom
+
+        pad_top    += 1
+        pad_bottom += 1
+
+        if (pad_top <= H) and (pad_bottom <= H):
+            
+            # Reflect data at the latitude boundaries
+            return np.concatenate((np.fliplr(data[:, 1:pad_top]), data, np.fliplr(data[:, -pad_bottom:-1])), axis=1)
+        
+        raise AttributeError(f"The requested padding size is larger than height size of the input image.")
+
+    def _padding_data(self, data):
+        data = self._cyclic_padding(data)
+        data = self._reflective_padding(data)
+        return data
+
+
+class E33OMAPADRNN(E33OMAPAD):
+
+    def __init__(self, period, species, padding):
+        super(E33OMAPADRNN, self).__init__(period, species, padding)
+
+    def _cyclic_padding(self, data):
+    
+        W = data.shape[3] # longitude
+
+        # Define the amount of padding required
+        pad_left = (self.padding[1] - W) // 2  # Padding on the left side
+        pad_right = self.padding[1] - W - pad_left  # Padding on the right side
+
+        if (pad_left <= W) and (pad_right <= W):
+            
+            # Cyclically extend data along the longitude
+            return np.concatenate([data[..., -pad_left:], data, data[..., :pad_right]], axis=3)
+        
+        raise AttributeError(f"The requested padding size is larger than width size of the input image.")
+
+    def _reflective_padding(self, data):
+
+        H = data.shape[2] # latitude
+        
+        # Define the amount of padding required
+        pad_top = (self.padding[0] - H) // 2  # Padding on the top
+        pad_bottom = self.padding[0] - H - pad_top  # Padding on the bottom
+
+        pad_top    += 1
+        pad_bottom += 1
+
+        if (pad_top <= H) and (pad_bottom <= H):
+            
+            # Reflect data at the latitude boundaries
+            return np.concatenate((np.fliplr(data[:, :, 1:pad_top]), data, np.fliplr(data[:, :, -pad_bottom:-1])), axis=2)
+        
+        raise AttributeError(f"The requested padding size is larger than height size of the input image.")
+
+
+class E33OMA(E33OMAPAD):
+
+    def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data0/E33OMA'):
+        super(E33OMA, self).__init__(period, species, padding)
+        
         self.in_channels = in_channels
         self.transform = transform
         self.root = root
@@ -180,32 +263,7 @@ class E33OMA(Dataset):
         y = torch.from_numpy(y).type(torch.float32) # torch image: C x H x W
 
         return X, y
-    
-    def _cyclic_padding(self, data):
-        
-        # Define the amount of padding required
-        pad_left = (self.padding - 144) // 2  # Padding on the left side
-        pad_right = self.padding - 144 - pad_left  # Padding on the right side
-
-        # Cyclically extend data along the longitude
-        return np.concatenate([data[..., -pad_left:], data, data[..., :pad_right]], axis=2)
-
-    def _reflective_padding(self, data):
-
-        # Define the amount of padding required
-        pad_top = (self.padding - 90) // 2  # Padding on the top
-        pad_bottom = self.padding - 90 - pad_top  # Padding on the bottom
-
-        pad_top += 1
-        pad_bottom += 1
-        # Reflect data at the latitude boundaries
-        return np.concatenate((np.fliplr(data[:, 1:pad_top]), data, np.fliplr(data[:, -pad_bottom:-1])), axis=1)
-
-    def _padding_data(self, data):
-        data = self._cyclic_padding(data)
-        data = self._reflective_padding(data)
-        return data
-    
+       
     def __getattr__(self, name):
         if name == 'datetimeindex':
             return self.datetimeindex1
@@ -215,14 +273,11 @@ class E33OMA(Dataset):
         return len(self.datetimeindex)
 
 
-class E33OMA90D(Dataset):
+class E33OMA90D(E33OMAPAD):
 
     def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
-        super(E33OMA90D, self).__init__()
+        super(E33OMA90D, self).__init__(period, species, padding)
         
-        self.period  = period
-        self.species = species
-        self.padding = padding
         self.in_channels = in_channels
         self.transform = transform
         self.root = root
@@ -315,43 +370,16 @@ class E33OMA90D(Dataset):
         y = torch.from_numpy(y).type(torch.float32) # torch image: C x H x W
 
         return X, y
-    
-    def _cyclic_padding(self, data):
-        
-        # Define the amount of padding required
-        pad_left = (self.padding - 144) // 2  # Padding on the left side
-        pad_right = self.padding - 144 - pad_left  # Padding on the right side
-
-        # Cyclically extend data along the longitude
-        return np.concatenate([data[..., -pad_left:], data, data[..., :pad_right]], axis=2)
-
-    def _reflective_padding(self, data):
-
-        # Define the amount of padding required
-        pad_top = (self.padding - 90) // 2  # Padding on the top
-        pad_bottom = self.padding - 90 - pad_top  # Padding on the bottom
-
-        pad_top += 1
-        pad_bottom += 1
-        # Reflect data at the latitude boundaries
-        return np.concatenate((np.fliplr(data[:, 1:pad_top]), data, np.fliplr(data[:, -pad_bottom:-1])), axis=1) 
-
-    def _padding_data(self, data):
-        data = self._cyclic_padding(data)
-        data = self._reflective_padding(data)
-        return data
-        
+           
     def __len__(self):
         return len(self.y)
 
 
-class E33OMA_CRNN(Dataset):
+class E33OMA_CRNN(E33OMAPADRNN):
 
-    def __init__(self, period, species, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA'):
-        super(E33OMA_CRNN, self).__init__()
+    def __init__(self, period, species, padding, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA'):
+        super(E33OMA_CRNN, self).__init__(period, species, padding)
         
-        self.period  = period
-        self.species = species
         self.seq_len = sequence_length
         self.root    = root
         
@@ -475,6 +503,9 @@ class E33OMA_CRNN(Dataset):
         X = (X - X_means) / X_stds
         y = (y -  self.y_mean) / self.y_std
 
+        if self.padding:
+            X = self._padding_data(X) # (seq_len, 5, 90 + (2xpadding), 144 + (2xpadding))
+
         X = torch.from_numpy(X).type(torch.float32) # torch image: (sequence_length, channels, height, width)
         y = torch.from_numpy(y).type(torch.float32) # torch image: (sequence_length, channels, height, width)
 
@@ -488,13 +519,11 @@ class E33OMA_CRNN(Dataset):
         return len(self.datetimeindex)
 
 
-class E33OMA90D_CRNN(Dataset):
+class E33OMA90D_CRNN(E33OMAPADRNN):
 
-    def __init__(self, period, species, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
-        super(E33OMA90D_CRNN, self).__init__()
+    def __init__(self, period, species, padding, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
+        super(E33OMA90D_CRNN, self).__init__(period, species, padding)
         
-        self.period  = period
-        self.species = species
         self.seq_len = sequence_length
         self.root    = root
         
@@ -561,6 +590,9 @@ class E33OMA90D_CRNN(Dataset):
         
         X = np.array(self.X[index, ...], copy=True)
         y = np.array(self.y[index, ...], copy=True)
+
+        if self.padding:
+            X = self._padding_data(X) # (seq_len, 5, 90 + (2xpadding), 144 + (2xpadding))
            
         X = torch.from_numpy(X).type(torch.float32) # torch image: (sequence_length, channels, height, width)
         y = torch.from_numpy(y).type(torch.float32) # torch image: (sequence_length, channels, height, width)
@@ -572,8 +604,8 @@ class E33OMA90D_CRNN(Dataset):
 
 if __name__ == '__main__':
     
-    dataset = E33OMA(period='test', species='bcb', padding=256, in_channels=6, transform=None)
-    # dataset = E33OMA_CRNN(period='test', species='bcb', sequence_length=10)
+    dataset = E33OMA(period='test', species='bcb', padding=(256, 256), in_channels=6, transform=None)
+    # dataset = E33OMA_CRNN(period='test', padding=(100, 154), species='bcb', sequence_length=10)
     dataiter = iter(dataset)
     
     X, y = next(dataiter)
