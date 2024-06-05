@@ -96,7 +96,7 @@ def main(args):
                 pred = pred[:, :, 83:83+90, 56:56+144]
             
             elif args.model.split('-')[0] in ['LSTM']:
-                pred = pred[0].squeeze()
+                pred = pred[:, :, 5:5+90, 5:5+144].squeeze()
             
             # Compute Loss Function
             loss = loss_func1(y, pred) + loss_func2(y, pred)
@@ -154,7 +154,7 @@ def get_arguments(
     SEQUENCE_LENGTH=48,
     TRANSFORM=False,
     NUM_EPOCHS=50,
-    INPUT_SIZE=256,
+    INPUT_SIZE=(256, 256),
     BATCH_SIZE=4,
     NUM_WORKERS=1,
     SCHEDULER_STEP=10,
@@ -187,7 +187,7 @@ def get_arguments(
                         help="Whether to transform data for training.")
     parser.add_argument("--num-epochs", type=int, default=NUM_EPOCHS,
                         help="Number of epochs for training.")
-    parser.add_argument("--input-size", type=int, default=INPUT_SIZE,
+    parser.add_argument("--input-size", nargs=2, type=int, default=INPUT_SIZE,
                         help="Comma-separated string with height and width of s")
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE,
                         help="Number of images sent to the network in one step.")
