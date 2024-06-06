@@ -68,7 +68,7 @@ def val_loop(args, dataloader, model):
                 pred = pred[:, :, 83:83+90, 56:56+144]
             
             elif args.model.split('-')[0] in ['LSTM']:
-                pred = pred[0].squeeze()
+                pred = pred[:, :, 5:5+90, 5:5+144].squeeze()
             
             r2 += r2_score(y.detach().cpu().numpy().flatten(), pred.detach().cpu().numpy().flatten())
 
