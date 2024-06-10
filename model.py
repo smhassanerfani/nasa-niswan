@@ -194,7 +194,7 @@ class UNet(nn.Module):
 
 
 class ConvLSTMCell(nn.Module):
-    def __init__(self, input_channels, hidden_channels, kernel_size, bias=False):
+    def __init__(self, input_channels, hidden_channels, kernel_size, bias=True):
         super(ConvLSTMCell, self).__init__()
 
         self.input_channels = input_channels
@@ -209,8 +209,7 @@ class ConvLSTMCell(nn.Module):
                               kernel_size=self.kernel_size,
                               padding=self.padding,
                               bias=self.bias)
-        
-        self.batch_norm = nn.BatchNorm2d(4 * self.hidden_channels)
+
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
 
@@ -219,7 +218,6 @@ class ConvLSTMCell(nn.Module):
 
         combined = torch.cat([x, h], dim=1)
         gates = self.conv(combined)
-        gates = self.batch_norm(gates)  # Apply BatchNorm
         ingate, forgetgate, cellgate, outgate  = torch.split(gates, self.hidden_channels, dim=1)
         
         ingate     = self.sigmoid(ingate)
