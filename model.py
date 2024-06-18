@@ -234,20 +234,21 @@ class ConvLSTMCell(nn.Module):
 class ConvLSTM(nn.Module):
     def __init__(self, input_channels, hidden_channels, kernel_size, num_layers):
         super(ConvLSTM, self).__init__()
+        assert len(hidden_channels) == num_layers, 'The length of hidden_channels must be equal to num_layers.'
         self.num_layers = num_layers
 
         # Create a list of ConvLSTM cells
         self.layers = nn.ModuleList()
         
         # Add the first layer
-        self.layers.append(ConvLSTMCell(input_channels, hidden_channels, kernel_size))
+        self.layers.append(ConvLSTMCell(input_channels, hidden_channels[0], kernel_size[0]))
         
         # Add subsequent layers
-        for _ in range(1, num_layers):
-            self.layers.append(ConvLSTMCell(hidden_channels, hidden_channels, kernel_size))
+        for i in range(1, num_layers):
+            self.layers.append(ConvLSTMCell(hidden_channels[i-1], hidden_channels[i], kernel_size[i]))
 
         # Bottleneck layer
-        self.conv  = nn.Conv2d(hidden_channels, 1, kernel_size=1)
+        self.conv  = nn.Conv2d(hidden_channels[-1], 1, kernel_size=1)
 
     def forward(self, x):
         # Assuming x is a sequence of frames: (batch_size, sequence_length, channels, height, width)
@@ -255,9 +256,9 @@ class ConvLSTM(nn.Module):
         
         # Initialize hidden and cell states for each layer
         hidden_states = []
-        for _ in range(self.num_layers):
-            h = torch.zeros(batch_size, self.layers[0].hidden_channels, height, width).to(x.device)
-            c = torch.zeros(batch_size, self.layers[0].hidden_channels, height, width).to(x.device)
+        for i in range(self.num_layers):
+            h = torch.zeros(batch_size, self.layers[i].hidden_channels, height, width).to(x.device)
+            c = torch.zeros(batch_size, self.layers[i].hidden_channels, height, width).to(x.device)
             hidden_states.append((h, c))
 
         # outputs = []
@@ -270,7 +271,7 @@ class ConvLSTM(nn.Module):
                 x_t = h  # Output of the current layer is the input to the next layer
             # outputs.append(h.unsqueeze(1)) 
 
-        return self.conv(h) # torch.cat(outputs, dim=1) 
+        return self.conv(h) # torch.cat(outputs, dim=1)
 
 
 def initialize_weights(model):
@@ -279,12 +280,15 @@ def initialize_weights(model):
             nn.init.normal_(m.weight.data, 0.0, 0.02)
 
 def main():
-    x = torch.randn((1, 5, 256, 256))
+    x = torch.randn((2, 48, 5, 100, 154))
     # y = torch.randn((1, 1, 256, 256))
     # disc = Discriminator(in_channels=1)
     # print(disc(x, y).shape)
 
-    model = UNet(in_channels=5, out_channels=1)
+    # model = UNet(in_channels=5, out_channels=1)
+    # print(model(x).shape)
+
+    model = ConvLSTM(5, [64, 32, 16], [5, 3, 3], 3)
     print(model(x).shape)
 
 if __name__ == '__main__':
