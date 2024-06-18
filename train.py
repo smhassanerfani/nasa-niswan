@@ -21,7 +21,7 @@ from utils import seed, load_checkpoint, save_checkpoint, val_loop, LoggerDecora
 
 
 def main(args):
-    
+
     warnings.filterwarnings("ignore", message="Converting a CFTimeIndex with dates from a non-standard calendar")
 
     since = time.time()
@@ -45,19 +45,19 @@ def main(args):
         generator = ConvLSTM(args.in_channels, args.hidden_channels, args.kernel_size, args.num_layers).cuda()
     
     # Dataloader
-    if args.dataset == 'E33OMA':
+    if (args.dataset == 'E33OMA' and args.model.split('-')[0] == 'UNet'):
         train_dataset = E33OMA(period='train', species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
         val_dataset   = E33OMA(period='val',   species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
     
-    if args.dataset == 'E33OMA90D':
+    if (args.dataset == 'E33OMA90D' and args.model.split('-')[0] == 'UNet'):
         train_dataset = E33OMA90D(period='train', species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
         val_dataset   = E33OMA90D(period='val',   species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
 
-    if args.dataset == 'E33OMA-CRNN':
+    if (args.dataset == 'E33OMA' and args.model.split('-')[0] == 'LSTM'):
         train_dataset = E33OMA_CRNN(period='train', species=args.species, padding=args.input_size, sequence_length=args.sequence_length)
         val_dataset   = E33OMA_CRNN(period='val',   species=args.species, padding=args.input_size, sequence_length=args.sequence_length)
     
-    if args.dataset == 'E33OMA90D-CRNN':
+    if (args.dataset == 'E33OMA90D' and args.model.split('-')[0] == 'LSTM'):
         train_dataset = E33OMA90D_CRNN(period='train', species=args.species, padding=args.input_size, sequence_length=args.sequence_length)
         val_dataset   = E33OMA90D_CRNN(period='val',   species=args.species, padding=args.input_size, sequence_length=args.sequence_length)
 
@@ -148,8 +148,8 @@ def get_arguments(
     LEARNING_RATE=1.0E-04,
     DATASET='E33OMA',
     IN_CHANNELS=5,
-    HIDDEN_CHANNELS=10,
-    KERNEL_SIZE=3,
+    HIDDEN_CHANNELS=(64, 32, 16),
+    KERNEL_SIZE=(5, 3, 3),
     NUM_LAYERS=3,
     SEQUENCE_LENGTH=48,
     TRANSFORM=False,
@@ -175,9 +175,9 @@ def get_arguments(
                         help=f"The name of dataset.")
     parser.add_argument("--in-channels", type=int, default=IN_CHANNELS,
                         help="Number of input channels of the model.")
-    parser.add_argument("--hidden-channels", type=int, default=HIDDEN_CHANNELS,
+    parser.add_argument("--hidden-channels", nargs='+', type=int, default=HIDDEN_CHANNELS,
                         help="Number of hidden channels of the RNN model.")
-    parser.add_argument("--kernel-size", type=int, default=KERNEL_SIZE,
+    parser.add_argument("--kernel-size", nargs='+', type=int, default=KERNEL_SIZE,
                         help="Kernel size of convolution layers of RNN.")
     parser.add_argument("--num-layers", type=int, default=NUM_LAYERS,
                         help="Number of LSTM cells of the RNN model.")
