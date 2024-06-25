@@ -60,8 +60,9 @@ class E33OMAPAD(Dataset):
 
 class E33OMAPADRNN(E33OMAPAD):
 
-    def __init__(self, period, species, padding):
+    def __init__(self, period, species, padding, sequence_length=10):
         super(E33OMAPADRNN, self).__init__(period, species, padding)
+        self.seq_len = sequence_length
 
     def _cyclic_padding(self, data):
     
@@ -95,6 +96,27 @@ class E33OMAPADRNN(E33OMAPAD):
             return np.concatenate((np.fliplr(data[:, :, 1:pad_top]), data, np.fliplr(data[:, :, -pad_bottom:-1])), axis=2)
         
         raise AttributeError(f"The requested padding size is larger than height size of the input image.")
+    
+    def add_static_attributes(self):
+
+        ds = xr.open_dataset('/home/serfani/serfani_data0/static_attrs/static_attrs.nc')
+
+        S1 = ds['landfr'].values
+        S2 = ds['ocnfr'].values
+        S3 = ds['oicefr'].values
+
+        S = np.stack([S1, S2, S3], axis=0)
+
+        S_mean = S.mean(axis=(1, 2)).reshape(-1, 1, 1) 
+        S_std  = S.std(axis=(1, 2)).reshape(-1, 1, 1)
+
+        S = (S - S_mean) / S_std
+
+        # Add a new axis to the array
+        S = np.expand_dims(S, axis=0)
+
+        # Replicate the array along the new axis using np.repeat
+        self.S = np.repeat(S, repeats=self.seq_len, axis=0)
 
 
 class E33OMA(E33OMAPAD):
@@ -377,11 +399,11 @@ class E33OMA90D(E33OMAPAD):
 
 class E33OMA_CRNN(E33OMAPADRNN):
 
-    def __init__(self, period, species, padding, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA'):
-        super(E33OMA_CRNN, self).__init__(period, species, padding)
+    def __init__(self, period, species, padding, in_channels=5, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA'):
+        super(E33OMA_CRNN, self).__init__(period, species, padding, sequence_length)
         
-        self.seq_len = sequence_length
-        self.root    = root
+        self.in_channels = in_channels
+        self.root = root
         
         self._get_data_index()
     
@@ -503,6 +525,10 @@ class E33OMA_CRNN(E33OMAPADRNN):
         X = (X - X_means) / X_stds
         y = (y -  self.y_mean) / self.y_std
 
+        if self.in_channels == 8:
+            self.add_static_attributes()
+            X = np.concatenate((X, self.S), axis=1)
+
         if self.padding:
             X = self._padding_data(X) # (seq_len, 5, 90 + (2xpadding), 144 + (2xpadding))
 
@@ -521,11 +547,11 @@ class E33OMA_CRNN(E33OMAPADRNN):
 
 class E33OMA90D_CRNN(E33OMAPADRNN):
 
-    def __init__(self, period, species, padding, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
-        super(E33OMA90D_CRNN, self).__init__(period, species, padding)
+    def __init__(self, period, species, padding, in_channels=5, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
+        super(E33OMA90D_CRNN, self).__init__(period, species, padding, sequence_length)
         
-        self.seq_len = sequence_length
-        self.root    = root
+        self.in_channels = in_channels
+        self.root = root
         
         self._get_data()
     
@@ -589,6 +615,11 @@ class E33OMA90D_CRNN(E33OMAPADRNN):
     def __getitem__(self, index):
         
         X = np.array(self.X[index, ...], copy=True)
+        
+        if self.in_channels == 8:
+            self.add_static_attributes()
+            X = np.concatenate((X, self.S), axis=1)
+        
         y = np.array(self.y[index, ...], copy=True)
 
         if self.padding:
@@ -604,8 +635,8 @@ class E33OMA90D_CRNN(E33OMAPADRNN):
 
 if __name__ == '__main__':
     
-    dataset = E33OMA(period='test', species='bcb', padding=(256, 256), in_channels=6, transform=None)
-    # dataset = E33OMA_CRNN(period='test', padding=(100, 154), species='bcb', sequence_length=10)
+    # dataset = E33OMA(period='test', species='bcb', padding=(256, 256), in_channels=6, transform=None)
+    dataset = E33OMA_CRNN(period='test', padding=(100, 154), species='bcb', in_channels=8, sequence_length=15)
     dataiter = iter(dataset)
     
     X, y = next(dataiter)
