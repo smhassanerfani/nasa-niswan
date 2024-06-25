@@ -54,12 +54,12 @@ def main(args):
         val_dataset   = E33OMA90D(period='val',   species=args.species, padding=args.input_size, in_channels=args.in_channels, transform=args.transform)
 
     if (args.dataset == 'E33OMA' and args.model.split('-')[0] == 'LSTM'):
-        train_dataset = E33OMA_CRNN(period='train', species=args.species, padding=args.input_size, sequence_length=args.sequence_length)
-        val_dataset   = E33OMA_CRNN(period='val',   species=args.species, padding=args.input_size, sequence_length=args.sequence_length)
+        train_dataset = E33OMA_CRNN(period='train', species=args.species, padding=args.input_size, in_channels=args.in_channels, sequence_length=args.sequence_length)
+        val_dataset   = E33OMA_CRNN(period='val',   species=args.species, padding=args.input_size, in_channels=args.in_channels, sequence_length=args.sequence_length)
     
     if (args.dataset == 'E33OMA90D' and args.model.split('-')[0] == 'LSTM'):
-        train_dataset = E33OMA90D_CRNN(period='train', species=args.species, padding=args.input_size, sequence_length=args.sequence_length)
-        val_dataset   = E33OMA90D_CRNN(period='val',   species=args.species, padding=args.input_size, sequence_length=args.sequence_length)
+        train_dataset = E33OMA90D_CRNN(period='train', species=args.species, padding=args.input_size, in_channels=args.in_channels, sequence_length=args.sequence_length)
+        val_dataset   = E33OMA90D_CRNN(period='val',   species=args.species, padding=args.input_size, in_channels=args.in_channels, sequence_length=args.sequence_length)
 
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_dataloader   = DataLoader(val_dataset, batch_size=1, shuffle=True)
