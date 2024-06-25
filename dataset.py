@@ -101,11 +101,14 @@ class E33OMAPADRNN(E33OMAPAD):
 
         ds = xr.open_dataset('/home/serfani/serfani_data0/static_attrs/static_attrs.nc')
 
-        S1 = ds['landfr'].values
-        S2 = ds['ocnfr'].values
-        S3 = ds['oicefr'].values
+        S = list()
 
-        S = np.stack([S1, S2, S3], axis=0)
+        # Iterate through the variables and print their attributes
+        for var_name, var_data in ds.data_vars.items():
+            if var_name.split('_')[0] != 'lai':
+                S.append(var_data)
+
+        S = np.array(S)
 
         S_mean = S.mean(axis=(1, 2)).reshape(-1, 1, 1) 
         S_std  = S.std(axis=(1, 2)).reshape(-1, 1, 1)
@@ -525,7 +528,7 @@ class E33OMA_CRNN(E33OMAPADRNN):
         X = (X - X_means) / X_stds
         y = (y -  self.y_mean) / self.y_std
 
-        if self.in_channels == 8:
+        if self.in_channels > 5:
             self.add_static_attributes()
             X = np.concatenate((X, self.S), axis=1)
 
@@ -616,7 +619,7 @@ class E33OMA90D_CRNN(E33OMAPADRNN):
         
         X = np.array(self.X[index, ...], copy=True)
         
-        if self.in_channels == 8:
+        if self.in_channels > 5:
             self.add_static_attributes()
             X = np.concatenate((X, self.S), axis=1)
         
@@ -636,7 +639,7 @@ class E33OMA90D_CRNN(E33OMAPADRNN):
 if __name__ == '__main__':
     
     # dataset = E33OMA(period='test', species='bcb', padding=(256, 256), in_channels=6, transform=None)
-    dataset = E33OMA_CRNN(period='test', padding=(100, 154), species='bcb', in_channels=8, sequence_length=15)
+    dataset = E33OMA_CRNN(period='test', padding=(100, 154), species='bcb', in_channels=22, sequence_length=15)
     dataiter = iter(dataset)
     
     X, y = next(dataiter)
