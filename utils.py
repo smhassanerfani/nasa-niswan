@@ -121,21 +121,7 @@ class LoggerDecorator(object):
 def make_saving_path(root, format, name):
     return os.path.join(root, f'{name}.{format}')
 
-def qqplot(ds_list, var, yax1='' ,axis_names=None, quantiles=None, save_figure=False, fformat=None, saving_path=None):
-
-    ds = xr.open_mfdataset(ds_list)
-
-    weights = np.cos(np.deg2rad(ds.lat))
-    weights.name = "weights"
-
-    if ds[var].ndim == 3:
-        ds = ds.weighted(weights).mean(dim=("lat", "lon"))
-    
-    if ds[var].ndim == 4:    
-        ds = ds.isel(level=0).weighted(weights).mean(dim=("lat", "lon"))
-        
-    y_test = ds[var].isel(time=slice(0, 17520)).values
-    y_pred = ds[var].isel(time=slice(17520, None)).values
+def qqplot(y_test, y_pred, yax1='' ,axis_names=None, quantiles=None, save_figure=False, fformat=None, saving_path=None):
 
     fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(10, 3), constrained_layout=True)
 
@@ -146,7 +132,7 @@ def qqplot(ds_list, var, yax1='' ,axis_names=None, quantiles=None, save_figure=F
         y_test_name=axis_names[0]
         y_pred_name=axis_names[1]
 
-    ax1.boxplot([y_test, y_pred])
+    ax1.boxplot([y_test, y_pred], showmeans=True, showfliers=False)
 
     ax1.set_xticklabels([y_test_name, y_pred_name])
     ax1.tick_params(axis='x', labelrotation=0, labelsize=12)
@@ -160,6 +146,7 @@ def qqplot(ds_list, var, yax1='' ,axis_names=None, quantiles=None, save_figure=F
     x2 = np.sort(y_pred)
     y2 = np.arange(1, len(y_pred) + 1) / len(y_pred)
     ax2.plot(x2, y2, linestyle='-.', alpha=1, label=y_pred_name)
+    ax2.grid(True)
     ax2.legend()
 
     if quantiles is None:
@@ -184,26 +171,24 @@ def qqplot(ds_list, var, yax1='' ,axis_names=None, quantiles=None, save_figure=F
     plt.show()
 
 
-def plot_global_ave(ds_list, var, save_figure=False, fformat=None, saving_path=None):
-    ds = xr.open_mfdataset(ds_list)
-
-    weights = np.cos(np.deg2rad(ds.lat))
-    weights.name = "weights"
-
-    if ds[var].ndim == 3:
-        ds = ds.weighted(weights).mean(dim=("lat", "lon"))
-    
-    if ds[var].ndim == 4:    
-        ds = ds.isel(level=0).weighted(weights).mean(dim=("lat", "lon"))
+def plot_global_ave(ds, save_figure=False, fformat=None, saving_path=None):
 
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(20, 4), constrained_layout=True, gridspec_kw={'width_ratios':[1, 4]})
 
-    ax1.boxplot([ds[var].isel(time=slice(0, 17520)).values, ds[var].isel(time=slice(17520, None)).values], showfliers=False)
-    ax1.set_xticklabels(['1950', '1951'])
+    avg1950 = ds.isel(time=slice(0, 17520)).values
+    avg1951 = ds.isel(time=slice(17520, None)).values
+
+    max_value = np.array((avg1950, avg1951)).max()
+    min_value = np.array((avg1950, avg1951)).min()
+
+    ax1.scatter(avg1950.ravel(), avg1951.ravel(), color='teal', edgecolor='steelblue', alpha=0.5)
+    ax1.plot([min_value, max_value], [min_value, max_value], '--', color='black', linewidth=1.5)
+    ax1.set_xlabel('1950')
+    ax1.set_ylabel('1951')
     ax1.grid()
 
-    ax2.plot(ds[var].isel(time=slice(0, 17520)).values, label='1950')
-    ax2.plot(ds[var].isel(time=slice(17520, None)).values, label='1951')
+    ax2.plot(avg1950, label='1950')
+    ax2.plot(avg1951, label='1951')
     ax2.grid()
 
     # Add tick labels for 12 months
@@ -214,7 +199,7 @@ def plot_global_ave(ds_list, var, save_figure=False, fformat=None, saving_path=N
     ax2.set_xticklabels(month_names, rotation=45)
 
     # Add title for the entire subplot
-    plt.suptitle(f'Input Variable: {var}')
+    # plt.suptitle(f'Input Variable: {var}')
 
     plt.legend()
 
@@ -245,5 +230,6 @@ def plot_on_grid(df, lat, lon):
     
     fig, ax = plt.subplots(figsize=(20, 4))
     g.set_index('time')[['Real Data', 'Model Output']].plot(ax=ax)
-   
+    
+    ax.grid(True)
     plt.show()
