@@ -16,7 +16,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
 from dataset import E33OMA, E33OMA90D, E33OMA_CRNN, E33OMA90D_CRNN
-from model import Discriminator, Generator, UNet, ConvLSTMCell, ConvLSTM, initialize_weights
+from model import Generator, UNet, ConvLSTM, initialize_weights
 from utils import seed, load_checkpoint, save_checkpoint, val_loop, LoggerDecorator
 
 
@@ -28,6 +28,9 @@ def main(args):
     
     print(f"{args.model} is deployed on {torch.cuda.get_device_name(0)}")
     
+    # Initialize the random number generators
+    seed(0)
+
     # Loading model
     if args.model.split('-')[0] == 'PIX2PIX':
         generator = Generator(in_channels=args.in_channels, features=64).cuda()
