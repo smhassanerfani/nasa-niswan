@@ -99,7 +99,7 @@ class E33OMAPADRNN(E33OMAPAD):
     
     def add_static_attributes(self):
 
-        ds = xr.open_dataset('/home/serfani/serfani_data0/static_attrs/static_attrs.nc')
+        ds = xr.open_dataset('/home/serfani/serfani_data1/static_attrs/static_attrs.nc')
 
         S = list()
 
@@ -124,7 +124,7 @@ class E33OMAPADRNN(E33OMAPAD):
 
 class E33OMA(E33OMAPAD):
 
-    def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data0/E33OMA'):
+    def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data1/E33OMA'):
         super(E33OMA, self).__init__(period, species, padding)
         
         self.in_channels = in_channels
@@ -300,7 +300,7 @@ class E33OMA(E33OMAPAD):
 
 class E33OMA90D(E33OMAPAD):
 
-    def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
+    def __init__(self, period, species, padding, in_channels=5, transform=None, root='/home/serfani/serfani_data1/E33OMA-90Days.nc'):
         super(E33OMA90D, self).__init__(period, species, padding)
         
         self.in_channels = in_channels
@@ -402,7 +402,7 @@ class E33OMA90D(E33OMAPAD):
 
 class E33OMA_CRNN(E33OMAPADRNN):
 
-    def __init__(self, period, species, padding, in_channels=5, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA'):
+    def __init__(self, period, species, padding, in_channels=5, sequence_length=10, root='/home/serfani/serfani_data1/E33OMA'):
         super(E33OMA_CRNN, self).__init__(period, species, padding, sequence_length)
         
         self.in_channels = in_channels
@@ -550,7 +550,7 @@ class E33OMA_CRNN(E33OMAPADRNN):
 
 class E33OMA90D_CRNN(E33OMAPADRNN):
 
-    def __init__(self, period, species, padding, in_channels=5, sequence_length=10, root='/home/serfani/serfani_data0/E33OMA-90Days.nc'):
+    def __init__(self, period, species, padding, in_channels=5, sequence_length=10, root='/home/serfani/serfani_data1/E33OMA-90Days.nc'):
         super(E33OMA90D_CRNN, self).__init__(period, species, padding, sequence_length)
         
         self.in_channels = in_channels
@@ -639,7 +639,7 @@ class E33OMA90D_CRNN(E33OMAPADRNN):
 if __name__ == '__main__':
     
     # dataset = E33OMA(period='test', species='bcb', padding=(256, 256), in_channels=6, transform=None)
-    dataset = E33OMA_CRNN(period='test', padding=(100, 154), species='bcb', in_channels=22, sequence_length=15)
+    dataset = E33OMA_CRNN(period='test', padding=(100, 154), species='bcb', in_channels=8, sequence_length=15)
     dataiter = iter(dataset)
     
     X, y = next(dataiter)
