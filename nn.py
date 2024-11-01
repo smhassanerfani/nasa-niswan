@@ -13,6 +13,16 @@ class ConvLSTMCell(nn.Module):
         self.padding = kernel_size // 2
         self.bias = bias
 
+        self.W_ci = nn.parameter.Parameter(
+            torch.zeros(hidden_channels, 32, 32, dtype=torch.float)
+        )
+        self.W_co = nn.parameter.Parameter(
+            torch.zeros(hidden_channels, 32, 32, dtype=torch.float)
+        )
+        self.W_cf = nn.parameter.Parameter(
+            torch.zeros(hidden_channels, 32, 32, dtype=torch.float)
+        )
+
         self.conv = nn.Conv2d(in_channels=self.input_channels + self.hidden_channels,
                               out_channels=4 * self.hidden_channels,
                               kernel_size=self.kernel_size,
@@ -29,12 +39,14 @@ class ConvLSTMCell(nn.Module):
         gates = self.conv(combined)
         ingate, forgetgate, cellgate, outgate  = torch.split(gates, self.hidden_channels, dim=1)
         
-        ingate     = self.sigmoid(ingate)
-        forgetgate = self.sigmoid(forgetgate)
+        ingate     = self.sigmoid(ingate + self.W_ci * c)
+        forgetgate = self.sigmoid(forgetgate + self.W_cf * c)
         cellgate   = self.tanh(cellgate)
-        outgate    = self.sigmoid(outgate)
+        # outgate    = self.sigmoid(outgate)
 
         c = c * forgetgate + ingate * cellgate
+        
+        outgate = self.sigmoid(outgate + self.W_co * c)
         h = outgate * self.tanh(c)
 
         return h, c
@@ -45,6 +57,7 @@ class ConvLSTM(nn.Module):
         super(ConvLSTM, self).__init__()
         assert len(hidden_channels) == num_layers, 'The length of hidden_channels must be equal to num_layers.'
         self.num_layers = num_layers
+        self.hidden_channels = hidden_channels
 
         # Create a list of ConvLSTM cells
         self.layers = nn.ModuleList()
@@ -66,8 +79,8 @@ class ConvLSTM(nn.Module):
         # Initialize hidden and cell states for each layer
         hidden_states = []
         for i in range(self.num_layers):
-            h = torch.zeros(batch_size, self.layers[i].hidden_channels, height, width).to(x.device)
-            c = torch.zeros(batch_size, self.layers[i].hidden_channels, height, width).to(x.device)
+            h = torch.zeros(batch_size, self.hidden_channels[i], height, width).to(x.device)
+            c = torch.zeros(batch_size, self.hidden_channels[i], height, width).to(x.device)
             hidden_states.append((h, c))
 
         for t in range(seq_len):
@@ -83,10 +96,10 @@ class ConvLSTM(nn.Module):
 
 def main():
 
-    x = torch.randn((2, 48, 5, 100, 154))
+    x = torch.randn((2, 48, 5, 32, 32))
     model = ConvLSTM(5, [64, 32, 16], [5, 3, 3], 3)
     
-    print(model(x).shape) # torch.Size([2, 1, 1, 100, 154])
+    print(model(x).shape) # torch.Size([2, 1, 1, 32, 32])
 
 if __name__ == '__main__':
     main()
