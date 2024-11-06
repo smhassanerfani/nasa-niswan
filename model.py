@@ -5,49 +5,13 @@ import torch.nn as nn
 import pytorch_lightning as pl
 
 from nn import ConvLSTM
-from core.constants import DEVICE, WeightsInitializer
-from self_attention_memory_convlstm.seq2seq import SAMSeq2Seq, SAMSeq2SeqParams
-from convlstm.seq2seq import Seq2Seq, Seq2SeqParams
 
-model_params: SAMSeq2SeqParams = {
-    "attention_hidden_dims": 1,
-    "input_seq_length": 48,
-    "num_layers": 4,
-    "num_kernels": 64,
-    "return_sequences": False,
-    "convlstm_params": {
-        "in_channels": 5,
-        "out_channels": 1,
-        "kernel_size": 3,
-        "padding": 1,
-        "activation": "relu",
-        "frame_size": (32, 32),
-        "weights_initializer": WeightsInitializer.He,
-    },
-}
-
-# model_params: Seq2SeqParams = {
-#     "input_seq_length": 48,
-#     "num_layers": 4,
-#     "num_kernels": 64,
-#     "return_sequences": False,
-#     "convlstm_params": {
-#         "in_channels": 5,
-#         "out_channels": 1,
-#         "kernel_size": 3,
-#         "padding": 1,
-#         "activation": "tanh",
-#         "frame_size": (32, 32),
-#         "weights_initializer": WeightsInitializer.He,
-#     },
-# }
 
 class ConvLSTMLightning(pl.LightningModule):
     def __init__(self, input_channels, hidden_channels, kernel_size, num_layers, learning_rate: Optional[float] = 1E-3):
         super(ConvLSTMLightning, self).__init__()
 
-        # self.model = ConvLSTM(input_channels, hidden_channels, kernel_size, num_layers)
-        self.model = SAMSeq2Seq(**model_params)
+        self.model = ConvLSTM(input_channels, hidden_channels, kernel_size, num_layers)
         self.learning_rate = learning_rate
 
         self.loss1 = nn.MSELoss()
