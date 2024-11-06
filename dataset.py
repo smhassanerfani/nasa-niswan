@@ -94,20 +94,17 @@ class E33OMA90D(E33OMAPAD):
                 
         self.y_avg = y[:3023, ...].mean().reshape(-1, 1, 1)
         self.y_std = y[:3023, ...].std().reshape(-1, 1, 1)
-        self.y_min = y[:3023, ...].min().reshape(-1, 1, 1)
-        self.y_max = y[:3023, ...].max().reshape(-1, 1, 1)
         
         self.X_avg = Xs[:3023, ...].mean(axis=(0, 2, 3)).reshape(-1, 1, 1) 
-        self.X_std  = Xs[:3023, ...].std(axis=(0, 2, 3)).reshape(-1, 1, 1)
+        self.X_std = Xs[:3023, ...].std(axis=(0, 2, 3)).reshape(-1, 1, 1)
 
         Xs = (Xs - self.X_avg) / self.X_std
         y  = (y  - self.y_avg) / self.y_std
-        y  = 2 * ((y-self.y_min)/(self.y_max - self.y_min)) - 1
 
         X = self.create_sequences(Xs)
         y = y[self.seq_len - 1:]
 
-        X = np.transpose(X, (0, 2, 1, 3, 4)) # (batch_size, seq_len, 5, 90, 144) -> (batch_size, 5, seq_len, 90, 144)
+        # X = np.transpose(X, (0, 2, 1, 3, 4)) # (batch_size, seq_len, 5, 90, 144) -> (batch_size, 5, seq_len, 90, 144)
 
         if self.period == "train": # 70% of the total data
             self.y = y[:3023, ...]
