@@ -269,9 +269,9 @@ class ConvLSTM(nn.Module):
                 h, c = self.layers[layer_idx](x_t, (h, c))
                 hidden_states[layer_idx] = (h, c)
                 x_t = h  # Output of the current layer is the input to the next layer
-            # outputs.append(h.unsqueeze(1)) 
+            # outputs.append(self.conv(h)) 
 
-        return self.conv(h) # torch.cat(outputs, dim=1)
+        return self.conv(h) # , torch.cat(outputs, dim=1)
 
 
 def initialize_weights(model):
