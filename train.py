@@ -1,7 +1,7 @@
 import os
 
-from model import ConvLSTMLightning
-from dataset import E33OMA90DModule
+from model import STMLightning
+from dataset import E33OMAModule
 
 import torch
 
@@ -16,10 +16,10 @@ torch.set_float32_matmul_precision('medium')
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 if __name__ == "__main__":
-    logger = TensorBoardLogger("tb_logs", name="ConvLSTMLightningV3")
+    logger = TensorBoardLogger("tb_logs", name="Conv3D-V01-01292025")
 
-    model = ConvLSTMLightning(input_channels=5, hidden_channels=[64, 32, 16], kernel_size=[5, 3, 3], num_layers=3)
-    dm = E33OMA90DModule(sequence_length=48, batch_size=8, num_workers=4)
+    model = STMLightning(in_channels=5, out_channels=1, kernel_size=(2, 3, 3))
+    dm = E33OMAModule(sequence_length=64, padding=(100, 154), batch_size=8, num_workers=4)
 
     trainer = Trainer(
         logger=logger,
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     trainer.fit(model, dm)
     trainer.validate(model, dm)
     
-    # Create a Tuner object
+    # # Create a Tuner object
     # tuner = Tuner(trainer)
 
     # # Find the optimal learning rate
