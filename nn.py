@@ -1,7 +1,90 @@
-from typing import Tuple
-
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+
+class GLU(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, padding, dilation):
+        super(GLU, self).__init__()
+        self.out_channels = out_channels
+        self.causal_padding  = dilation[0] * (kernel_size[0] - 1)  # Causal padding for the temporal dimension
+        
+        self.conv = nn.Conv3d(
+            in_channels, out_channels*2, kernel_size, padding=padding, dilation=dilation
+        ) 
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        # x = F.pad(x, (0, 0, 0, 0, self.causal_padding, 0, 0, 0, 0, 0)) # Pad the depth dimension
+
+        gates = self.conv(x)
+        x, outgate  = torch.split(gates, self.out_channels, dim=1)
+
+        return x * self.sigmoid(outgate)
+
+
+class Conv3D(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, padding=(0, 1, 1)):
+        super(Conv3D, self).__init__()
+
+        # Explicitly define each Conv3D layer with correct dilation
+        self.conv1 = GLU(
+            in_channels,
+            16,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=(1, 1, 1)
+        )
+
+        self.conv2 = GLU(
+            16,
+            32,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=(2, 1, 1)
+        )
+
+        self.conv3 = GLU(
+            32,
+            32,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=(4, 1, 1)
+        )
+
+        self.conv4 = GLU(
+            32,
+            32,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=(8, 1, 1)
+        )
+
+        self.conv5 = GLU(
+            32,
+            16,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=(16, 1, 1)
+        )
+
+        self.conv6 = GLU(
+            16,
+            out_channels,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=(32, 1, 1)
+        )
+  
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+        x = self.conv6(x)
+        
+        return x
 
 
 class Conv(nn.Module):
@@ -43,7 +126,7 @@ class SelfAttentionMemory(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
 
-    def forward(self, h, m) -> Tuple:
+    def forward(self, h, m):
         """
         Return:
             Tuple(torch.Tensor, torch.Tensor): new Hidden layer and new memory module.
@@ -193,10 +276,11 @@ class ConvLSTM(nn.Module):
 
 def main():
 
-    x = torch.randn((2, 48, 5, 32, 32))
-    model = ConvLSTM(5, [64, 32, 16], [5, 3, 3], 3)
-    
-    print(model(x).shape) # torch.Size([2, 1, 1, 32, 32])
+    x = torch.randn((8, 5, 64, 100, 154))
+    # model = ConvLSTM(5, [64, 32, 16], [5, 3, 3], 3)
+    model = Conv3D(in_channels=5, out_channels=1, kernel_size=(2, 3, 3))
+    y = model(x)
+    print(y.size())
 
 if __name__ == '__main__':
     main()
