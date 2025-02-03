@@ -7,8 +7,17 @@ import pytorch_lightning as pl
 from nn import ConvLSTM, Conv3D
 
 
+class RMSLELoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mse = nn.MSELoss()
+        
+    def forward(self, pred, actual):
+        return torch.sqrt(self.mse(torch.log(pred + 1), torch.log(actual + 1)))
+
+
 class STMLightning(pl.LightningModule):
-    def __init__(self, in_channels, out_channels, kernel_size, learning_rate: Optional[float] = 0.00012022644346174128):
+    def __init__(self, in_channels, out_channels, kernel_size, learning_rate: Optional[float] = 5.25E-05):
         super(STMLightning, self).__init__()
 
         self.model = Conv3D(in_channels, out_channels, kernel_size)
@@ -58,7 +67,7 @@ class STMLightning(pl.LightningModule):
         return total_loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, betas=(0.5, 0.999))
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.learning_rate, weight_decay=0.01)
         
         # Define the scheduler
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
