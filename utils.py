@@ -9,6 +9,7 @@ import torch
 from functools import wraps
 from sklearn.metrics import r2_score
 
+import torch.nn as nn
 import matplotlib.pyplot as plt
 import xarray as xr
 
@@ -233,3 +234,34 @@ def plot_on_grid(df, lat, lon):
     
     ax.grid(True)
     plt.show()
+
+
+class RMSLELoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mse = nn.MSELoss()
+        
+    def forward(self, pred, actual):
+        return torch.sqrt(self.mse(torch.log(pred + 1), torch.log(actual + 1)))
+
+
+class LogCoshLoss(nn.Module):
+    def __init__(self):
+        """
+        Initialize the Log-Cosh Loss.
+        """
+        super(LogCoshLoss, self).__init__()
+
+    def forward(self, y_pred, y_true):
+        """
+        Compute the Log-Cosh Loss.
+
+        Args:
+            y_pred (torch.Tensor): Predicted values (shape: [N, ...]).
+            y_true (torch.Tensor): Ground truth values (shape: [N, ...]).
+
+        Returns:
+            torch.Tensor: Scalar loss value.
+        """
+        diff = y_pred - y_true
+        return torch.mean(torch.log(torch.cosh(diff)))
