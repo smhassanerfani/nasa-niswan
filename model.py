@@ -4,23 +4,14 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-from nn import ConvLSTM, Conv3D
-
-
-class RMSLELoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.mse = nn.MSELoss()
-        
-    def forward(self, pred, actual):
-        return torch.sqrt(self.mse(torch.log(pred + 1), torch.log(actual + 1)))
-
+from nn import ConvLSTM, Conv3D, EncDecConvLSTM
+from utils import RMSLELoss, LogCoshLoss
 
 class STMLightning(pl.LightningModule):
-    def __init__(self, in_channels, out_channels, kernel_size, learning_rate: Optional[float] = 5.25E-05):
+    def __init__(self, in_channels, out_channels, kernel_size, learning_rate: Optional[float] = 1E-04):
         super(STMLightning, self).__init__()
 
-        self.model = Conv3D(in_channels, out_channels, kernel_size)
+        self.model = EncDecConvLSTM(in_channels, out_channels, kernel_size)
         self.learning_rate = learning_rate
 
         self.loss1 = nn.MSELoss()
@@ -32,7 +23,8 @@ class STMLightning(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(x)
-        y_hat = y_hat[..., 5:5+90, 5:5+144]
+        # y_hat = y_hat[..., 5:5+90, 5:5+144]
+        y_hat = y_hat[..., 35:35+90, 8:8+144]
         
         loss1 = self.loss1(y_hat, y)
         loss2 = self.loss2(y_hat, y)
@@ -44,7 +36,8 @@ class STMLightning(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(x)
-        y_hat = y_hat[..., 5:5+90, 5:5+144]
+        # y_hat = y_hat[..., 5:5+90, 5:5+144]
+        y_hat = y_hat[..., 35:35+90, 8:8+144]
 
         loss1 = self.loss1(y_hat, y)
         loss2 = self.loss2(y_hat, y)

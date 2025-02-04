@@ -16,11 +16,12 @@ torch.set_float32_matmul_precision('medium')
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 if __name__ == "__main__":
-    logger = TensorBoardLogger("tb_logs", name="Conv3D-V02-02032025")
+    logger = TensorBoardLogger("tb_logs", name="EncDecConvLSTM-V01-02042025")
 
-    model = STMLightning(in_channels=5, out_channels=1, kernel_size=(2, 3, 3))
+    model = STMLightning(in_channels=5, out_channels=64, kernel_size=3)
+    # model = STMLightning(in_channels=5, out_channels=1, kernel_size=(2, 3, 3))
     # model = STMLightning(in_channels=5, out_channels=[64, 32, 16], kernel_size=[5, 3, 3])
-    dm = E33OMAModule(sequence_length=64, padding=(100, 154), batch_size=16, num_workers=4)
+    dm = E33OMAModule(sequence_length=48, padding=(160, 160), batch_size=8, num_workers=4)
 
     trainer = Trainer(
         logger=logger,
