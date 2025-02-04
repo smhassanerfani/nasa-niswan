@@ -182,13 +182,14 @@ class E33OMA(E33OMAPAD):
             y_mean  = vs['bc_conc']['mean']; y_std = vs['bc_conc']['std']
 
 
-        X_means = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(5, 1, 1, 1)
-        X_stds  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(5, 1, 1, 1)
+        X_means = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(1, 5, 1, 1)
+        X_stds  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(1, 5, 1, 1)
 
         self.y_mean = np.array(y_mean, dtype=np.float32)
         self.y_std  = np.array(y_std, dtype=np.float32)
 
-        X = np.stack([X1, X2, X3, X4, X5], axis=0) # (channels, sequence_length, height, width)
+        # X = np.stack([X1, X2, X3, X4, X5], axis=0) # (channels, sequence_length, height, width)
+        X = np.stack([X1, X2, X3, X4, X5], axis=1) # (sequence_length, channels, height, width)
 
         X = (X - X_means) / X_stds
         y = (y -  self.y_mean) / self.y_std
@@ -329,7 +330,7 @@ class E33OMAModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     
-    dataset = E33OMA(period='train', padding=(100, 154), species='bcb', sequence_length=64)
+    dataset = E33OMA(period='train', padding=(160, 160), species='bcb', sequence_length=48)
     dataloader = DataLoader(dataset, batch_size=8, num_workers=4, shuffle=True)
     dataiter = iter(dataloader)
 
