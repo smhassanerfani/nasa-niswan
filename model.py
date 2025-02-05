@@ -8,7 +8,7 @@ from nn import ConvLSTM, Conv3D, EncDecConvLSTM
 from utils import RMSLELoss, LogCoshLoss
 
 class STMLightning(pl.LightningModule):
-    def __init__(self, in_channels, out_channels, kernel_size, learning_rate: Optional[float] = 1E-04):
+    def __init__(self, in_channels, out_channels, kernel_size, learning_rate: Optional[float] = 1E-03):
         super(STMLightning, self).__init__()
 
         self.model = EncDecConvLSTM(in_channels, out_channels, kernel_size)
@@ -60,10 +60,12 @@ class STMLightning(pl.LightningModule):
         return total_loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.learning_rate, weight_decay=0.01)
-        
+        # optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.learning_rate, weight_decay=0.01)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+
         # Define the scheduler
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
         
         # Return both optimizer and scheduler
         return {

@@ -16,7 +16,7 @@ torch.set_float32_matmul_precision('medium')
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 if __name__ == "__main__":
-    logger = TensorBoardLogger("tb_logs", name="EncDecConvLSTM-V01-02042025")
+    logger = TensorBoardLogger("tb_logs", name="EncDecConvLSTM-V02-02052025")
 
     model = STMLightning(in_channels=5, out_channels=64, kernel_size=3)
     # model = STMLightning(in_channels=5, out_channels=1, kernel_size=(2, 3, 3))
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         logger=logger,
-        max_epochs=50,
+        max_epochs=30,
         accelerator="gpu",
         devices=1,
         precision=32
