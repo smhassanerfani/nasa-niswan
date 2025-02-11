@@ -1,5 +1,4 @@
 import os
-import os.path as osp
 import json
 import warnings
 
@@ -27,8 +26,8 @@ class E33OMAPAD(Dataset):
         W = data.shape[3] # longitude
 
         # Define the amount of padding required
-        pad_left = (self.padding[1] - W) // 2  # Padding on the left side
-        pad_right = self.padding[1] - W - pad_left  # Padding on the right side
+        pad_left = self.padding[1]  # Padding on the left side
+        pad_right = self.padding[1] # Padding on the right side
 
         if (pad_left <= W) and (pad_right <= W):
             
@@ -42,8 +41,8 @@ class E33OMAPAD(Dataset):
         H = data.shape[2] # latitude
         
         # Define the amount of padding required
-        pad_top = (self.padding[0] - H) // 2  # Padding on the top
-        pad_bottom = self.padding[0] - H - pad_top  # Padding on the bottom
+        pad_top = self.padding[0]
+        pad_bottom = self.padding[0]
 
         pad_top    += 1
         pad_bottom += 1
@@ -74,7 +73,7 @@ class E33OMA(E33OMAPAD):
         for root, dirs, files in os.walk(self.root):
             
             sorted_files = sorted(files)
-            list1 = [osp.join(root, file) for file in sorted_files if file.split(".")[1] == 'aijlh1E33oma_ai']   # Velocity Fields (time, level, lat, lon)
+            list1 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] == 'aijlh1E33oma_ai']   # Velocity Fields (time, level, lat, lon)
 
         # Convert `cftime.DatetimeNoLeap` to `pandas.to_datetime()`
         warnings.filterwarnings("ignore", message="Converting a CFTimeIndex with dates from a non-standard calendar")
@@ -88,7 +87,7 @@ class E33OMA(E33OMAPAD):
         y_datetimeindex = datetimeindex[self.seq_len - 1:]
 
         idx = np.arange(17520) # 35040 / 2 = 17520
-        rng = np.random.default_rng(0)
+        rng = np.random.default_rng(42)
         rng.shuffle(idx)
         idx = idx.tolist()
 
@@ -108,11 +107,11 @@ class E33OMA(E33OMAPAD):
         
         timesteps = self.X_datetimeindex[index]
         
-        ls1 = [osp.join(self.root, f'{ts}.aijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+        ls1 = [os.path.join(self.root, f'{ts}.aijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
         ds1 = xr.open_mfdataset(ls1)
         ds1['time'] = ds1.indexes['time'].to_datetimeindex()
 
-        ls2 = [osp.join(self.root, f'{ts}.cijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+        ls2 = [os.path.join(self.root, f'{ts}.cijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
         ds2 = xr.open_mfdataset(ls2)
         ds2['time'] = ds2.indexes['time'].to_datetimeindex()
         
@@ -133,11 +132,11 @@ class E33OMA(E33OMAPAD):
 
         if self.species == 'seasalt':
 
-            ls3 = [osp.join(self.root, f'{ts}.taijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+            ls3 = [os.path.join(self.root, f'{ts}.taijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
             ds3 = xr.open_mfdataset(ls3)
             ds3['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ls4 = [osp.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
             ds4 = xr.open_mfdataset(ls4)
             ds4['time'] = ds4.indexes['time'].to_datetimeindex()
 
@@ -149,11 +148,11 @@ class E33OMA(E33OMAPAD):
 
         if self.species == 'clay':
 
-            ls3 = [osp.join(self.root, f'{ts}.tNDaijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+            ls3 = [os.path.join(self.root, f'{ts}.tNDaijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
             ds3 = xr.open_mfdataset(ls3)
             ds3['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ls4 = [osp.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
             ds4 = xr.open_mfdataset(ls4)
             ds4['time'] = ds4.indexes['time'].to_datetimeindex()
 
@@ -165,17 +164,16 @@ class E33OMA(E33OMAPAD):
 
         if self.species == 'bcb':
 
-            ls3 = [osp.join(self.root, f'{ts}.tNDaijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+            ls3 = [os.path.join(self.root, f'{ts}.tNDaijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
             ds3 = xr.open_mfdataset(ls3)
             ds3['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ls4 = [osp.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
             ds4 = xr.open_mfdataset(ls4)
             ds4['time'] = ds4.indexes['time'].to_datetimeindex()
 
             X5 = ds3['BCB_biomass_src'].sel(time=slice(timesteps[0], timesteps[-1]))
             y  = ds4['BCB'].isel(level=0).sel(time=self.datetimeindex[index]).values
-            # Add two new axes
             y = y[np.newaxis, np.newaxis, :, :]
 
             X5_mean = vs['bc_src']['mean']; X5_std = vs['bc_src']['std']
@@ -194,7 +192,7 @@ class E33OMA(E33OMAPAD):
         X = (X - X_means) / X_stds
         y = (y -  self.y_mean) / self.y_std
 
-        if self.padding:
+        if self.padding != [0, 0]:
             X = self._padding_data(X) # (5, seq_len, 90 + (2xpadding), 144 + (2xpadding))
 
         X = torch.from_numpy(X).type(torch.float32) # torch image: (channels, sequence_length, height, width)
@@ -244,7 +242,7 @@ class E33OMA90D(E33OMAPAD):
             y  = ds['bcb_conc'].isel(level=0).sel(lat=slice(-32, 32), lon=slice(-21.25, 56.25)).values
             X5 = ds['bcb_src'].sel(lat=slice(-32, 32), lon=slice(-21.25, 56.25)).values
         
-        Xs = np.stack([X1, X2, X3, X4, X5], axis=1)
+        Xs = np.stack([X1, X2, X3, X4, X5], axis=1) # (sequence_length, channels, height, width)
                 
         self.y_avg = y[:3023, ...].mean().reshape(-1, 1, 1)
         self.y_std = y[:3023, ...].std().reshape(-1, 1, 1)
@@ -260,13 +258,17 @@ class E33OMA90D(E33OMAPAD):
 
         # X = np.transpose(X, (0, 2, 1, 3, 4)) # (batch_size, seq_len, 5, 90, 144) -> (batch_size, 5, seq_len, 90, 144)
 
+        idx = np.arange(3023 + 432) # (90 x 48) = 4320
+        rng = np.random.default_rng(42)
+        rng.shuffle(idx)
+
         if self.period == "train": # 70% of the total data
-            self.y = y[:3023, ...]
-            self.X = X[:3023, ...]
+            self.y = y[idx[:3023], ...]
+            self.X = X[idx[:3023], ...]
             
         elif self.period == "val": # 10% of the total data
-            self.y = y[3023:3455, ...]
-            self.X = X[3023:3455, ...]
+            self.y = y[idx[3023:3023+432], ...]
+            self.X = X[idx[3023:3023+432], ...]
             
         elif self.period == "test": # 20% of the total data
             self.y = y[3455:, ...]
@@ -282,26 +284,28 @@ class E33OMA90D(E33OMAPAD):
         X = np.array(self.X[index, ...], copy=True)      
         y = np.array(self.y[None, None, index, ...], copy=True)
 
-        if self.padding:
-            X = self._padding_data(X) # (seq_len, 5, 90 + (2xpadding), 144 + (2xpadding))
+        if self.padding != [0, 0]:
+            X = self._padding_data(X) # (seq_len, 5, 32 + (2xpadding), 32 + (2xpadding))
            
         X = torch.from_numpy(X).type(torch.float32) # torch image: (sequence_length, channels, height, width)
         y = torch.from_numpy(y).type(torch.float32) # torch image: (sequence_length, channels, height, width)
 
-        return X, y
+        return X, y # torch.Size([8, 48, 5, 32, 32]), torch.Size([8, 1, 1, 32, 32])
            
     def __len__(self):
         return len(self.y)
 
 
 class E33OMAModule(pl.LightningDataModule):
-    def __init__(self, species: str = 'bcb', padding: bool = False, sequence_length: int = 48, batch_size: int = 8, num_workers: int = 4):
+    def __init__(self, data_args):
         super().__init__()
-        self.species = species
-        self.padding = padding
-        self.seq_len = sequence_length
-        self.batch_size = batch_size
-        self.num_workers = num_workers
+
+        self.data_name = data_args['data_name']
+        self.species = data_args['species']
+        self.padding = data_args['padding']
+        self.seq_len = data_args['sequence_length']
+        self.batch_size = data_args['batch_size']
+        self.num_workers = data_args['num_workers']
 
     def prepare_data(self):
         # This method is used to download or prepare the data. It is called only once.
@@ -311,32 +315,30 @@ class E33OMAModule(pl.LightningDataModule):
     def setup(self, stage: str = None):
         # This method sets up the train, validation, and test datasets.
         # It is called on every GPU separately.
-        self.train_dataset = E33OMA(period='train', padding= self.padding, species=self.species, sequence_length=self.seq_len)
-        self.val_dataset = E33OMA(period='val',  padding= self.padding, species=self.species, sequence_length=self.seq_len)
-        self.test_dataset = E33OMA(period='test',  padding= self.padding, species=self.species, sequence_length=self.seq_len)
+        if 'E33OMA' == self.data_name:
+            self.train_dataset = E33OMA(period='train', padding= self.padding, species=self.species, sequence_length=self.seq_len)
+            self.val_dataset = E33OMA(period='val',  padding= self.padding, species=self.species, sequence_length=self.seq_len)
+        
+        elif 'E33OMA90D' == self.data_name:
+            self.train_dataset = E33OMA90D(period='train', padding= self.padding, species=self.species, sequence_length=self.seq_len)
+            self.val_dataset = E33OMA90D(period='val',  padding= self.padding, species=self.species, sequence_length=self.seq_len)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
+                          shuffle=True, persistent_workers=True, pin_memory=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
-
-    def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
-
-    def predict_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
+                          persistent_workers=True, pin_memory=True)
 
 
 if __name__ == '__main__':
     
-    dataset = E33OMA(period='train', padding=(160, 160), species='bcb', sequence_length=48)
+    dataset = E33OMA90D(period='val', padding=(0, 0), species='bcb', sequence_length=48)
     dataloader = DataLoader(dataset, batch_size=8, num_workers=4, shuffle=True)
     dataiter = iter(dataloader)
 
     X, y = next(dataiter)
-    # torch.Size([5, 48, 32, 32]) torch.Size([1, 1, 32, 32])
 
     print(len(dataset))
     print(X.shape, y.shape)
-    # print(dataset.datetimeindex)

@@ -1,13 +1,18 @@
 import os
+import yaml
+import argparse
+from datetime import datetime
 
 from model import STMLightning
 from dataset import E33OMAModule
 
 import torch
 
-from pytorch_lightning import Trainer
-from pytorch_lightning.tuner.tuning import Tuner
+import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.callbacks import ModelCheckpoint
+
+pl.seed_everything(42)
 
 torch.cuda.empty_cache()
 torch.set_float32_matmul_precision('medium')
@@ -15,39 +20,44 @@ torch.set_float32_matmul_precision('medium')
 # Set environment variables to help manage CUDA memory
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
-if __name__ == "__main__":
-    logger = TensorBoardLogger("tb_logs", name="EncDecConvLSTM-V02-02052025")
+def main(args):
 
-    model = STMLightning(in_channels=5, out_channels=64, kernel_size=3)
-    # model = STMLightning(in_channels=5, out_channels=1, kernel_size=(2, 3, 3))
-    # model = STMLightning(in_channels=5, out_channels=[64, 32, 16], kernel_size=[5, 3, 3])
-    dm = E33OMAModule(sequence_length=48, padding=(160, 160), batch_size=8, num_workers=4)
+    # Retrieve hyperparameters
+    with open(args.config_filepath, 'r') as config_filepath:
+        hyperparams = yaml.load(config_filepath, Loader=yaml.FullLoader)
+        
+    model_args = hyperparams['model_args']
+    data_args = hyperparams['data_args']
+    
+    # Initialize model (model_args=model_args, data_args=data_args)
+    model = STMLightning(model_args=model_args, data_args=data_args)
+    dm = E33OMAModule(data_args)
 
-    trainer = Trainer(
-        logger=logger,
-        max_epochs=30,
+    # Get the current date and time
+    now = datetime.now()
+    formatted_date_time = now.strftime("%m%d%Y-%H%M")
+
+    # Initialize training
+    model_args['log_name'] = model_args['model_name'] + '-' + formatted_date_time
+    tb_logger = TensorBoardLogger(save_dir=model_args['log_dir'], name=model_args['log_name'])
+    checkpoint_callback = ModelCheckpoint(monitor='val_loss', mode='min')
+
+    trainer = pl.Trainer(
+        max_epochs=model_args['epochs'],
         accelerator="gpu",
         devices=1,
-        precision=32
+        precision=32,
+        logger=tb_logger,
+        callbacks=[checkpoint_callback]
         )
     
-    trainer.fit(model, dm)
-    trainer.validate(model, dm)
+    trainer.fit(model, datamodule=dm)
+    trainer.validate(model, datamodule=dm)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config-filepath', help='Provide the filepath string to the model config...', default='configs/ConvLSTM-02102025.yaml')
     
-    # # Create a Tuner object
-    # tuner = Tuner(trainer)
-
-    # # Find the optimal learning rate
-    # lr_finder = tuner.lr_find(model, datamodule=dm, min_lr=1e-5, max_lr=1e-1)
-
-    # # Plot the learning rate finder results
-    # fig = lr_finder.plot(suggest=True)
-    # fig.show()
-
-    # # Update the model's learning rate
-    # new_lr = lr_finder.suggestion()
-    # model.hparams.lr = new_lr  # Assuming your model uses `hparams.lr` for the optimizer
-    # print(f"Suggested learning rate: {new_lr}")
-
-    # Re-train the model with the new learning rate
-    # trainer.fit(model, datamodule=dm)
+    args = parser.parse_args()
+    main(args)
