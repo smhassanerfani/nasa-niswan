@@ -183,20 +183,20 @@ class E33OMA(E33OMAPAD):
         X_means = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(1, 5, 1, 1)
         X_stds  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(1, 5, 1, 1)
 
-        self.y_mean = np.array(y_mean, dtype=np.float32)
-        self.y_std  = np.array(y_std, dtype=np.float32)
+        self.y_mean = torch.tensor(y_mean, dtype=torch.float32)
+        self.y_std  = torch.tensor(y_std, dtype=torch.float32)
 
         # X = np.stack([X1, X2, X3, X4, X5], axis=0) # (channels, sequence_length, height, width)
         X = np.stack([X1, X2, X3, X4, X5], axis=1) # (sequence_length, channels, height, width)
-
-        X = (X - X_means) / X_stds
-        y = (y -  self.y_mean) / self.y_std
 
         if self.padding != [0, 0]:
             X = self._padding_data(X) # (5, seq_len, 90 + (2xpadding), 144 + (2xpadding))
 
         X = torch.from_numpy(X).type(torch.float32) # torch image: (channels, sequence_length, height, width)
         y = torch.from_numpy(y).type(torch.float32) # torch image: (channels, sequence_length, height, width)
+
+        X = (X - X_means) / X_stds
+        y = (y -  self.y_mean) / self.y_std
 
         return X, y 
         

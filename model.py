@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-from src import ConvLSTM
+from src import ConvLSTM, SimVP_Model 
 
 class STMLightning(pl.LightningModule):
     def __init__(self, model_args, data_args):
@@ -23,8 +23,24 @@ class STMLightning(pl.LightningModule):
                 kernel_size=self.model_args['kernel_size']
                 )
 
+        elif 'SimVP' == self.model_args['model_name']:
+            self.model = SimVP_Model(
+                in_shape=(48, 5, 160, 160),
+                hid_S=self.model_args['hid_S'], 
+                hid_T=self.model_args['hid_T'], 
+                N_S=self.model_args['N_S'], 
+                N_T=self.model_args['N_T'], 
+                model_type='gSTA',
+                mlp_ratio=8.0,
+                drop=0.0, 
+                drop_path=0.2,
+                spatio_kernel_enc=self.model_args['spatio_kernel_enc'], 
+                spatio_kernel_dec=self.model_args['spatio_kernel_dec'], 
+                act_inplace=True
+                )
+            
         self.loss1 = nn.MSELoss()
-        self.loss2 = nn.L1Loss()
+        # self.loss2 = nn.L1Loss()
 
     def forward(self, x):
         return self.model(x)
@@ -37,8 +53,8 @@ class STMLightning(pl.LightningModule):
                       self.data_args['padding'][1]:self.data_args['padding'][1]+self.data_args['size'][1]]
         
         loss1 = self.loss1(y_hat, y)
-        loss2 = self.loss2(y_hat, y)
-        total_loss = (loss1 + loss2) / 2
+        # loss2 = self.loss2(y_hat, y)
+        total_loss = loss1 # + loss2) / 2
 
         self.log('train_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return total_loss
@@ -51,9 +67,9 @@ class STMLightning(pl.LightningModule):
                       self.data_args['padding'][1]:self.data_args['padding'][1]+self.data_args['size'][1]]
 
         loss1 = self.loss1(y_hat, y)
-        loss2 = self.loss2(y_hat, y)
+        # loss2 = self.loss2(y_hat, y)
 
-        total_loss = (loss1 + loss2) / 2
+        total_loss = loss1 # + loss2) / 2
 
         self.log('val_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return total_loss
@@ -62,10 +78,17 @@ class STMLightning(pl.LightningModule):
         optimizer = torch.optim.AdamW(
             self.model.parameters(), 
             lr=self.model_args['learning_rate'],
-            weight_decay=self.model_args['weight_decay'])
+            weight_decay=self.model_args['weight_decay']
+            )
 
         # Define the scheduler
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.model_args['epochs'], eta_min=0)
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.model_args['epochs'], eta_min=0)
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer, 
+            max_lr=self.model_args['learning_rate']*10,
+            steps_per_epoch=self.data_args['steps_per_epoch'], 
+            epochs=self.model_args['epochs']
+            )
         
         # Return both optimizer and scheduler
         return {
@@ -73,7 +96,7 @@ class STMLightning(pl.LightningModule):
             "lr_scheduler": {
                 "scheduler": scheduler,
                 "monitor": "val_loss",  # Metric to monitor
-                "interval": "epoch",    # Frequency of the scheduler
+                "interval": "step",    # Frequency of the scheduler
                 "frequency": 1,         # How often to check the monitor
                 "strict": True,         # Enforce the availability of the monitored metric
             },
