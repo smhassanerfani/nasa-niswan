@@ -40,7 +40,15 @@ def main(args):
     # Initialize training
     model_args['log_name'] = model_args['model_name'] + '-' + formatted_date_time
     tb_logger = TensorBoardLogger(save_dir=model_args['log_dir'], name=model_args['log_name'])
-    checkpoint_callback = ModelCheckpoint(monitor='val_loss', mode='min')
+    # checkpoint_callback = ModelCheckpoint(monitor='val_loss', mode='min')
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val_loss',
+        # dirpath=os.path.join(model_args['log_dir'], model_args['log_name'], 'checkpoints'),
+        # filename=model_args['model_name'] + '-{epoch:02d}-{step}',
+        save_top_k=1,
+        mode='min',
+        save_last=True
+    )
 
     trainer = pl.Trainer(
         max_epochs=model_args['epochs'],

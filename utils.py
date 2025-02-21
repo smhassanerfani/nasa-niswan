@@ -236,6 +236,24 @@ def plot_on_grid(df, lat, lon):
     plt.show()
 
 
+class RMSE(nn.Module):
+    def __init__(self):
+        super(RMSE, self).__init__()
+        self.lat = torch.cat((torch.tensor([-90]), torch.linspace(-87, 87, 88), torch.tensor([90])))
+
+    def forward(self, y_pred, y_true):
+        N_lat, N_lon = y_pred.shape
+        # Compute latitude weights
+        L = torch.cos(torch.deg2rad(self.lat))
+        L /= L.sum()  # Normalize weights
+        # Compute weighted squared error
+        squared_errors = (y_pred - y_true) ** 2
+        weighted_errors = (L[:, None] * squared_errors).sum()
+        # Compute RMSE
+        rmse = torch.sqrt(weighted_errors / (N_lat * N_lon))
+        return rmse
+
+
 class RMSLELoss(nn.Module):
     def __init__(self):
         super().__init__()

@@ -67,6 +67,10 @@ class E33OMA(E33OMAPAD):
         
         self.root = root
         self._get_data_index()
+
+        with open('variable_statistics.json', 'r') as jf:
+            data = json.load(jf)
+            self.vs = data['set1']
     
     def _get_data_index(self):
         
@@ -120,15 +124,11 @@ class E33OMA(E33OMAPAD):
         X3 = ds1['omega'].isel(level=0).sel(time=slice(timesteps[0], timesteps[-1]))
         
         X4 = ds2['prec'].sel(time=slice(timesteps[0], timesteps[-1]))
-
-        with open('variable_statistics.json', 'r') as jf:
-            data = json.load(jf)
-            vs = data['set1']
         
-        X1_mean = vs['u']['mean'];    X1_std = vs['u']['std']
-        X2_mean = vs['v']['mean'];    X2_std = vs['v']['std']
-        X3_mean = vs['w']['mean'];    X3_std = vs['w']['std']
-        X4_mean = vs['prec']['mean']; X4_std = vs['prec']['std']
+        X1_mean = self.vs['u']['mean'];    X1_std = self.vs['u']['std']
+        X2_mean = self.vs['v']['mean'];    X2_std = self.vs['v']['std']
+        X3_mean = self.vs['w']['mean'];    X3_std = self.vs['w']['std']
+        X4_mean = self.vs['prec']['mean']; X4_std = self.vs['prec']['std']
 
         if self.species == 'seasalt':
 
@@ -143,8 +143,8 @@ class E33OMA(E33OMAPAD):
             X5 = ds3['seasalt1_ocean_src'].sel(time=slice(timesteps[0], timesteps[-1]))
             y  = ds4['seasalt1'].isel(level=0).sel(time=self.datetimeindex[index]).values
 
-            X5_mean = vs['ss_src']['mean']; X5_std = vs['ss_src']['std']
-            y_mean  = vs['ss_conc']['mean']; y_std = vs['ss_conc']['std']
+            X5_mean = self.vs['ss_src']['mean']; X5_std = self.vs['ss_src']['std']
+            y_mean  = self.vs['ss_conc']['mean']; y_std = self.vs['ss_conc']['std']
 
         if self.species == 'clay':
 
@@ -159,8 +159,8 @@ class E33OMA(E33OMAPAD):
             X5 = ds3['Clay_emission'].sel(time=slice(timesteps[0], timesteps[-1]))
             y  = ds4['Clay'].isel(level=0).sel(time=self.datetimeindex[index]).values
 
-            X5_mean = vs['c_src']['mean']; X5_std = vs['c_src']['std']
-            y_mean  = vs['c_conc']['mean']; y_std = vs['c_conc']['std']
+            X5_mean = self.vs['c_src']['mean']; X5_std = self.vs['c_src']['std']
+            y_mean  = self.vs['c_conc']['mean']; y_std = self.vs['c_conc']['std']
 
         if self.species == 'bcb':
 
@@ -176,27 +176,23 @@ class E33OMA(E33OMAPAD):
             y  = ds4['BCB'].isel(level=0).sel(time=self.datetimeindex[index]).values
             y = y[np.newaxis, np.newaxis, :, :]
 
-            X5_mean = vs['bc_src']['mean']; X5_std = vs['bc_src']['std']
-            y_mean  = vs['bc_conc']['mean']; y_std = vs['bc_conc']['std']
+            X5_mean = self.vs['bc_src']['mean']; X5_std = self.vs['bc_src']['std']
+            y_mean  = self.vs['bc_conc']['mean']; y_std = self.vs['bc_conc']['std']
 
 
         X_means = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(1, 5, 1, 1)
         X_stds  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(1, 5, 1, 1)
 
-        self.y_mean = torch.tensor(y_mean, dtype=torch.float32)
-        self.y_std  = torch.tensor(y_std, dtype=torch.float32)
-
-        # X = np.stack([X1, X2, X3, X4, X5], axis=0) # (channels, sequence_length, height, width)
         X = np.stack([X1, X2, X3, X4, X5], axis=1) # (sequence_length, channels, height, width)
+
+        X = (X - X_means) / X_stds
+        y = (y -  y_mean) / y_std
 
         if self.padding != [0, 0]:
             X = self._padding_data(X) # (5, seq_len, 90 + (2xpadding), 144 + (2xpadding))
 
         X = torch.from_numpy(X).type(torch.float32) # torch image: (channels, sequence_length, height, width)
         y = torch.from_numpy(y).type(torch.float32) # torch image: (channels, sequence_length, height, width)
-
-        X = (X - X_means) / X_stds
-        y = (y -  self.y_mean) / self.y_std
 
         return X, y 
         

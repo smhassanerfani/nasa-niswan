@@ -1,0 +1,20 @@
+model_args:
+    model_name: 'ConvLSTM'
+    log_dir: '/home/serfani/serfani_data1/snapshots'
+    in_channels: 5
+    out_channels: 1
+    encoder_channels: [8, 8, 8]
+    kernel_size: [3, 3, 3]
+    epochs: 3
+    learning_rate: 0.001
+    weight_decay: 0.001
+    
+data_args:
+    data_name: 'E33OMA90D'
+    species: 'bcb'
+    batch_size: 2
+    steps_per_epoch: 986
+    sequence_length: 12
+    num_workers: 2
+    size: [32, 32]
+    padding: [0, 0]

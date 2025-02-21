@@ -1,0 +1,19 @@
+model_args:
+    model_name: 'Conv3D'
+    log_dir: '/home/serfani/serfani_data1/snapshots'
+    in_channels: 5
+    out_channels: 1
+    kernel_size: [2, 3, 3]
+    epochs: 100
+    learning_rate: 0.001
+    weight_decay: 0.001
+    
+data_args:
+    data_name: 'E33OMA'
+    species: 'bcb'
+    batch_size: 8
+    sequence_length: 48
+    num_workers: 4
+    size: [90, 144]
+    padding: [35, 8]
+    steps_per_epoch: 2185
