@@ -93,10 +93,10 @@ class STMLightning(pl.LightningModule):
         return total_loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
+        optimizer = torch.optim.Adam(
             self.model.parameters(), 
             lr=self.model_args['learning_rate'],
-            weight_decay=self.model_args['weight_decay']
+            # weight_decay=self.model_args['weight_decay']
             )
 
         # Define the scheduler

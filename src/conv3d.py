@@ -29,57 +29,58 @@ class Conv3D(nn.Module):
 
         # Explicitly define each Conv3D layer with correct dilation
         self.conv1 = GLU(
-            1,
-            16,
+            64,
+            64,
             kernel_size=kernel_size,
             padding=padding,
             dilation=(1, 1, 1)
         )
 
         self.conv2 = GLU(
-            16,
-            32,
+            64,
+            64,
             kernel_size=kernel_size,
             padding=padding,
             dilation=(2, 1, 1)
         )
 
         self.conv3 = GLU(
-            32,
-            32,
+            64,
+            64,
             kernel_size=kernel_size,
             padding=padding,
             dilation=(4, 1, 1)
         )
 
         self.conv4 = GLU(
-            32,
-            32,
+            64,
+            64,
             kernel_size=kernel_size,
             padding=padding,
             dilation=(8, 1, 1)
         )
 
         self.conv5 = GLU(
-            32,
-            16,
+            64,
+            64,
             kernel_size=kernel_size,
             padding=padding,
             dilation=(16, 1, 1)
         )
 
         self.conv6 = GLU(
-            16,
-            1,
+            64,
+            64,
             kernel_size=kernel_size,
             padding=padding,
             dilation=(32, 1, 1)
         )
        
-        self.encoder = Encoder(in_channels, out_channels, 5)
-        self.decoder = Decoder(out_channels, out_channels, 5)
+        self.encoder = Encoder(in_channels, 5)
+        self.decoder = Decoder(64, 5)
         
-        self.readout = nn.Conv2d(48, out_channels, kernel_size=1, stride=1)
+        self.readout_ftr = nn.Conv2d(64, out_channels, kernel_size=1, stride=1)
+        self.readout_tmp = nn.Conv2d(48, out_channels, kernel_size=1, stride=1)
 
     def forward(self, x):
         B, T, C, H, W = x.size()
@@ -88,7 +89,7 @@ class Conv3D(nn.Module):
         x = x.view(B*T, C, H, W)
         x, enc = self.encoder(x) # BxT, 1, H//2, W//2
 
-        x = x.view(B, T, 1, H_enc, W_enc)
+        x = x.view(B, T, 64, H_enc, W_enc)
         x = x.permute(0, 2, 1, 3, 4)  # BxTxCxHxW -> BxCxTxHxW
 
         x = self.conv1(x)
@@ -99,21 +100,23 @@ class Conv3D(nn.Module):
         x = self.conv6(x)
 
         x = x.permute(0, 2, 1, 3, 4)  # Bx32xCxHxW -> BxTx32xHxW
-        x = x.contiguous().view(B*T, 1, H_enc, W_enc)
+        x = x.contiguous().view(B*T, 64, H_enc, W_enc)
 
         x = self.decoder(x, enc)
+
+        x = self.readout_ftr(x)
         x = x.view(B, T, 1, H, W)
         x = x.view(B, T*1, H, W)
+        x = self.readout_tmp(x)
 
-        x = self.readout(x).unsqueeze(1)
-        return x
+        return x.unsqueeze(1)
 
 class Encoder(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size):
+    def __init__(self, in_channels, kernel_size):
         super(Encoder, self).__init__()
-        self.conv1 = ConvLayer(in_channels,  32, kernel_size, stride=1)
-        self.conv2 = ConvLayer(32, out_channels, kernel_size, stride=2)
+        self.conv1 = ConvLayer(in_channels,  64, kernel_size, stride=1)
+        self.conv2 = ConvLayer(64, 64, kernel_size, stride=2)
     
     def forward(self, x):  # BxT, 5, 160, 160
         enc = self.conv1(x)
@@ -124,10 +127,10 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size):
+    def __init__(self, in_channels, kernel_size):
         super(Decoder, self).__init__()
-        self.conv1 = ConvTransposeLayer(in_channels, 32, kernel_size, stride=1)
-        self.conv2 = ConvLayer(32, out_channels, kernel_size, stride=1)
+        self.conv1 = ConvTransposeLayer(in_channels, 64, kernel_size, stride=1)
+        self.conv2 = ConvLayer(64, 64, kernel_size, stride=1)
 
     def forward(self, x, enc):  # BxT, 32, 16, 16
         x = self.conv1(x)
