@@ -3,9 +3,10 @@ import torch.nn as nn
 
 
 class ConvLSTMCell(nn.Module):
-    def __init__(self, input_channels, hidden_channels, kernel_size, bias=True):
+    def __init__(self, image_size, input_channels, hidden_channels, kernel_size, bias=True):
         super(ConvLSTMCell, self).__init__()
 
+        self.image_size = image_size
         self.input_channels = input_channels
         self.hidden_channels = hidden_channels
 
@@ -13,11 +14,22 @@ class ConvLSTMCell(nn.Module):
         self.padding = kernel_size // 2
         self.bias = bias
 
-        self.conv = nn.Conv2d(in_channels=self.input_channels + self.hidden_channels,
-                              out_channels=4 * self.hidden_channels,
-                              kernel_size=self.kernel_size,
+        self.W_ci = nn.Parameter(
+            torch.zeros(hidden_channels, image_size[0], image_size[1], dtype=torch.float32)
+            )
+        self.W_co = nn.Parameter(
+            torch.zeros(hidden_channels, image_size[0], image_size[1], dtype=torch.float32)
+            )
+        self.W_cf = nn.Parameter(
+            torch.zeros(hidden_channels, image_size[0], image_size[1], dtype=torch.float32)
+            )
+
+        self.conv = nn.Conv2d(in_channels=input_channels + hidden_channels,
+                              out_channels=4 * hidden_channels,
+                              kernel_size=kernel_size,
                               padding=self.padding,
-                              bias=self.bias)
+                              bias=bias
+                              )
 
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
@@ -29,19 +41,20 @@ class ConvLSTMCell(nn.Module):
         gates = self.conv(combined)
         ingate, forgetgate, cellgate, outgate  = torch.split(gates, self.hidden_channels, dim=1)
         
-        ingate     = self.sigmoid(ingate)
-        forgetgate = self.sigmoid(forgetgate)
+        ingate     = self.sigmoid(ingate + self.W_ci * c)
+        forgetgate = self.sigmoid(forgetgate + self.W_cf * c)
         cellgate   = self.tanh(cellgate)
-        outgate    = self.sigmoid(outgate)
 
         c = c * forgetgate + ingate * cellgate
+        outgate = self.sigmoid(outgate + self.W_co * c)
+
         h = outgate * self.tanh(c)
 
         return h, c
 
 
 class ConvLSTM(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden_channels, kernel_size):
+    def __init__(self, image_size, in_channels, out_channels, hidden_channels, kernel_size):
         super(ConvLSTM, self).__init__()
         self.num_layers = len(hidden_channels)
 
@@ -49,11 +62,11 @@ class ConvLSTM(nn.Module):
         self.layers = nn.ModuleList()
         
         # Add the first layer
-        self.layers.append(ConvLSTMCell(in_channels, hidden_channels[0], kernel_size[0]))
+        self.layers.append(ConvLSTMCell(image_size, in_channels, hidden_channels[0], kernel_size[0]))
         
         # Add subsequent layers
         for i in range(1, self.num_layers):
-            self.layers.append(ConvLSTMCell(hidden_channels[i-1], hidden_channels[i], kernel_size[i]))
+            self.layers.append(ConvLSTMCell(image_size, hidden_channels[i-1], hidden_channels[i], kernel_size[i]))
 
         # Bottleneck layer
         self.conv  = nn.Conv2d(hidden_channels[-1], out_channels, kernel_size=1)
@@ -83,7 +96,9 @@ class ConvLSTM(nn.Module):
 
 
 if __name__ == '__main__':
-    x = torch.randn((2, 48, 5, 32, 32))
+    x = torch.randn((2, 48, 5, 100, 154))
 
-    model = ConvLSTM(5, 1, [64, 32, 16], [7, 5, 3])
+    model = ConvLSTM((100, 154), 5, 1, [64, 32, 16], [7, 5, 3])
     print(model(x).shape)
+    print(model)
+  
