@@ -251,14 +251,14 @@ class E33OMA90D(E33OMAPAD):
         
         Xs = np.stack([X1, X2, X3, X4, X5], axis=1) # (sequence_length, channels, height, width)
                 
-        self.y_avg = y[:3023, ...].mean().reshape(-1, 1, 1)
+        self.y_mean = y[:3023, ...].mean().reshape(-1, 1, 1)
         self.y_std = y[:3023, ...].std().reshape(-1, 1, 1)
         
-        self.X_avg = Xs[:3023, ...].mean(axis=(0, 2, 3)).reshape(-1, 1, 1) 
+        self.X_mean = Xs[:3023, ...].mean(axis=(0, 2, 3)).reshape(-1, 1, 1) 
         self.X_std = Xs[:3023, ...].std(axis=(0, 2, 3)).reshape(-1, 1, 1)
 
-        Xs = (Xs - self.X_avg) / self.X_std
-        y  = (y  - self.y_avg) / self.y_std
+        Xs = (Xs - self.X_mean) / self.X_std
+        y  = (y  - self.y_mean) / self.y_std
 
         X = self.create_sequences(Xs)
         y = y[self.seq_len - 1:]
