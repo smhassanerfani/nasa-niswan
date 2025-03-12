@@ -59,6 +59,36 @@ class E33OMAPAD(Dataset):
         data = self._reflective_padding(data)
         return data
 
+    def _get_data_statistics(self):
+
+        with open('variable_statistics.json', 'r') as jf:
+            data = json.load(jf)
+        
+        X1_mean = data['set1']['u']['mean']
+        X2_mean = data['set1']['v']['mean']
+        X3_mean = data['set1']['w']['mean']
+        X4_mean = data['set1']['prec']['mean']
+
+        X1_std = data['set1']['u']['std']
+        X2_std = data['set1']['v']['std']
+        X3_std = data['set1']['w']['std']
+        X4_std = data['set1']['prec']['std']
+
+        if self.species == 'seasalt':
+            X5_mean = data['ss_src']['mean']; X5_std = data['ss_src']['std']
+            self.y_mean = data['ss_conc']['mean']; self.y_std = data['ss_conc']['std']
+        
+        if self.species == 'clay':
+            X5_mean = data['c_src']['mean']; X5_std = data['c_src']['std']
+            self.y_mean = data['c_conc']['mean']; self.y_std = data['c_conc']['std']
+        
+        if self.species == 'bcb':
+            X5_mean = data['bc_src']['mean']; X5_std = data['bc_src']['std']
+            self.y_mean = data['bc_conc']['mean']; self.y_std = data['bc_conc']['std']
+        
+        self.X_mean = np.array([X1_mean, X2_mean, X3_mean, X4_mean, X5_mean], dtype=np.float32).reshape(1, 5, 1, 1)
+        self.X_std = np.array([X1_std, X2_std, X3_std, X4_std, X5_std], dtype=np.float32).reshape(1, 5, 1, 1)
+
 
 class E33OMA(E33OMAPAD):
 
@@ -67,10 +97,7 @@ class E33OMA(E33OMAPAD):
         
         self.root = root
         self._get_data_index()
-
-        with open('variable_statistics.json', 'r') as jf:
-            data = json.load(jf)
-            self.vs = data['set1']
+        self._get_data_statistics()
     
     def _get_data_index(self):
         
@@ -124,11 +151,6 @@ class E33OMA(E33OMAPAD):
         X3 = ds1['omega'].isel(level=0).sel(time=slice(timesteps[0], timesteps[-1]))
         
         X4 = ds2['prec'].sel(time=slice(timesteps[0], timesteps[-1]))
-        
-        X1_mean = self.vs['u']['mean'];    X1_std = self.vs['u']['std']
-        X2_mean = self.vs['v']['mean'];    X2_std = self.vs['v']['std']
-        X3_mean = self.vs['w']['mean'];    X3_std = self.vs['w']['std']
-        X4_mean = self.vs['prec']['mean']; X4_std = self.vs['prec']['std']
 
         if self.species == 'seasalt':
 
@@ -142,9 +164,7 @@ class E33OMA(E33OMAPAD):
 
             X5 = ds3['seasalt1_ocean_src'].sel(time=slice(timesteps[0], timesteps[-1]))
             y  = ds4['seasalt1'].isel(level=0).sel(time=self.datetimeindex[index]).values
-
-            X5_mean = self.vs['ss_src']['mean']; X5_std = self.vs['ss_src']['std']
-            y_mean  = self.vs['ss_conc']['mean']; y_std = self.vs['ss_conc']['std']
+            y  = y[np.newaxis, np.newaxis, :, :]
 
         if self.species == 'clay':
 
@@ -158,9 +178,7 @@ class E33OMA(E33OMAPAD):
 
             X5 = ds3['Clay_emission'].sel(time=slice(timesteps[0], timesteps[-1]))
             y  = ds4['Clay'].isel(level=0).sel(time=self.datetimeindex[index]).values
-
-            X5_mean = self.vs['c_src']['mean']; X5_std = self.vs['c_src']['std']
-            y_mean  = self.vs['c_conc']['mean']; y_std = self.vs['c_conc']['std']
+            y  = y[np.newaxis, np.newaxis, :, :]
 
         if self.species == 'bcb':
 
@@ -174,19 +192,12 @@ class E33OMA(E33OMAPAD):
 
             X5 = ds3['BCB_biomass_src'].sel(time=slice(timesteps[0], timesteps[-1]))
             y  = ds4['BCB'].isel(level=0).sel(time=self.datetimeindex[index]).values
-            y = y[np.newaxis, np.newaxis, :, :]
-
-            X5_mean = self.vs['bc_src']['mean']; X5_std = self.vs['bc_src']['std']
-            y_mean  = self.vs['bc_conc']['mean']; y_std = self.vs['bc_conc']['std']
-
-
-        X_means = np.array((X1_mean, X2_mean, X3_mean, X4_mean, X5_mean), dtype=np.float32).reshape(1, 5, 1, 1)
-        X_stds  = np.array((X1_std, X2_std, X3_std, X4_std, X5_std), dtype=np.float32).reshape(1, 5, 1, 1)
+            y  = y[np.newaxis, np.newaxis, :, :]
 
         X = np.stack([X1, X2, X3, X4, X5], axis=1) # (sequence_length, channels, height, width)
 
-        X = (X - X_means) / X_stds
-        y = (y -  y_mean) / y_std
+        X = (X - self.X_mean) / self.X_std
+        y = (y - self.y_mean) / self.y_std
 
         if self.padding != [0, 0]:
             X = self._padding_data(X) # (5, seq_len, 90 + (2xpadding), 144 + (2xpadding))
@@ -330,7 +341,7 @@ class E33OMAModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     
-    dataset = E33OMA90D(period='val', padding=(0, 0), species='bcb', sequence_length=48)
+    dataset = E33OMA90D(period='val', padding=[0, 0], species='bcb', sequence_length=48)
     dataloader = DataLoader(dataset, batch_size=8, num_workers=4, shuffle=True)
     dataiter = iter(dataloader)
 
