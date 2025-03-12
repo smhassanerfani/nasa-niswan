@@ -235,22 +235,28 @@ def plot_on_grid(df, lat, lon):
     ax.grid(True)
     plt.show()
 
-
-class RMSE(nn.Module):
-    def __init__(self):
-        super(RMSE, self).__init__()
-        self.lat = torch.cat((torch.tensor([-90]), torch.linspace(-87, 87, 88), torch.tensor([90])))
+class RMSELoss(nn.Module):
+    def __init__(self, dataset):
+        super(RMSELoss, self).__init__()
+        # Define latitude range
+        if dataset == 'E33OMA':
+            self.lat = torch.cat((torch.tensor([-90]), torch.linspace(-87, 87, 88), torch.tensor([90])))
+        elif dataset == 'E33OMA90D':
+            self.lat = torch.cat((torch.tensor([-32]), torch.linspace(-30, 30, 30), torch.tensor([32])))
 
     def forward(self, y_pred, y_true):
-        N_lat, N_lon = y_pred.shape
+        B, T, C, N_lat, N_lon = y_pred.shape
+        # Move latitude tensor to the same device as y_pred
+        device = y_pred.device
+        lat = self.lat.to(device)
         # Compute latitude weights
-        L = torch.cos(torch.deg2rad(self.lat))
+        L = torch.cos(torch.deg2rad(lat))
         L /= L.sum()  # Normalize weights
         # Compute weighted squared error
         squared_errors = (y_pred - y_true) ** 2
-        weighted_errors = (L[:, None] * squared_errors).sum()
+        weighted_errors = (L[None, None, None, :, None] * squared_errors).sum()
         # Compute RMSE
-        rmse = torch.sqrt(weighted_errors / (N_lat * N_lon))
+        rmse = torch.sqrt(weighted_errors / (B * T * C * N_lat * N_lon))
         return rmse
 
 
