@@ -63,16 +63,17 @@ class E33OMAPAD(Dataset):
 
         with open('variable_statistics.json', 'r') as jf:
             data = json.load(jf)
+            data = data['set1']
         
-        X1_mean = data['set1']['u']['mean']
-        X2_mean = data['set1']['v']['mean']
-        X3_mean = data['set1']['w']['mean']
-        X4_mean = data['set1']['prec']['mean']
+        X1_mean = data['u']['mean']
+        X2_mean = data['v']['mean']
+        X3_mean = data['w']['mean']
+        X4_mean = data['prec']['mean']
 
-        X1_std = data['set1']['u']['std']
-        X2_std = data['set1']['v']['std']
-        X3_std = data['set1']['w']['std']
-        X4_std = data['set1']['prec']['std']
+        X1_std = data['u']['std']
+        X2_std = data['v']['std']
+        X3_std = data['w']['std']
+        X4_std = data['prec']['std']
 
         if self.species == 'seasalt':
             X5_mean = data['ss_src']['mean']; X5_std = data['ss_src']['std']
