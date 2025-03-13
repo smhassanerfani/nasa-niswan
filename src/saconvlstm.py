@@ -25,7 +25,7 @@ class PatchEmbedding(nn.Module):
         self.patch_size = patch_size
         super().__init__()
         self.projection = nn.Sequential(
-            # break-down the image in s1 x s2 patches and flat them
+            # break-down the image in h x w patches and flat them, i.e., H = h x p1 and W = w x p2
             Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=patch_size, p2=patch_size),
             nn.Linear(patch_size * patch_size * in_channels, emb_size)
         )
