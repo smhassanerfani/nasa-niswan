@@ -13,12 +13,13 @@ import pytorch_lightning as pl
 
 class E33OMAPAD(Dataset):
 
-    def __init__(self, period, species, padding, sequence_length=48):
+    def __init__(self, period, species, padding, levels=22, sequence_length=48):
         super(E33OMAPAD, self).__init__()
 
         self.period  = period
         self.species = species
         self.padding = padding
+        self.levels  = levels
         self.seq_len = sequence_length
 
     def _cyclic_padding(self, data):
@@ -63,38 +64,31 @@ class E33OMAPAD(Dataset):
 
         with open('variable_statistics.json', 'r') as jf:
             data = json.load(jf)
-            data = data['set1']
         
-        X1_mean = data['u']['mean']
-        X2_mean = data['v']['mean']
-        X3_mean = data['w']['mean']
-        X4_mean = data['prec']['mean']
+        X1_avg = np.array(data['u']['avg'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1)
+        X2_avg = np.array(data['v']['avg'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1) 
+        X3_avg = np.array(data['w']['avg'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1) 
+        X4_avg = np.array(data['p3d']['avg'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1)
+        
+        self.X5_mean = np.array(data['bc_src']['avg'], dtype=np.float32)
+        self.y_mean = np.array(data['bc_conc']['avg'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1)
 
-        X1_std = data['u']['std']
-        X2_std = data['v']['std']
-        X3_std = data['w']['std']
-        X4_std = data['prec']['std']
+        X1_std = np.array(data['u']['std'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1)
+        X2_std = np.array(data['v']['std'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1)
+        X3_std = np.array(data['w']['std'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1)
+        X4_std = np.array(data['p3d']['std'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1)
 
-        if self.species == 'seasalt':
-            X5_mean = data['ss_src']['mean']; X5_std = data['ss_src']['std']
-            self.y_mean = data['ss_conc']['mean']; self.y_std = data['ss_conc']['std']
-        
-        if self.species == 'clay':
-            X5_mean = data['c_src']['mean']; X5_std = data['c_src']['std']
-            self.y_mean = data['c_conc']['mean']; self.y_std = data['c_conc']['std']
-        
-        if self.species == 'bcb':
-            X5_mean = data['bc_src']['mean']; X5_std = data['bc_src']['std']
-            self.y_mean = data['bc_conc']['mean']; self.y_std = data['bc_conc']['std']
-        
-        self.X_mean = np.array([X1_mean, X2_mean, X3_mean, X4_mean, X5_mean], dtype=np.float32).reshape(1, 5, 1, 1)
-        self.X_std = np.array([X1_std, X2_std, X3_std, X4_std, X5_std], dtype=np.float32).reshape(1, 5, 1, 1)
+        self.X5_std = np.array(data['bc_src']['std'], dtype=np.float32)
+        self.y_std = np.array(data['bc_conc']['std'][:self.levels], dtype=np.float32).reshape(1, self.levels, 1, 1)
+
+        self.X_mean = np.stack([X1_avg, X2_avg, X3_avg, X4_avg], axis=1) # (4, levels, 1, 1)
+        self.X_std = np.stack([X1_std, X2_std, X3_std, X4_std], axis=1) # (4, levels, 1, 1)  
 
 
 class E33OMA(E33OMAPAD):
 
-    def __init__(self, period, species, padding, sequence_length=48, root='/home/serfani/serfani_data1/E33OMA'):
-        super(E33OMA, self).__init__(period, species, padding, sequence_length)
+    def __init__(self, period, species, padding, levels=22, sequence_length=48, root='/home/serfani/serfani_data1/E3OMA3D-1950/'):
+        super(E33OMA, self).__init__(period, species, padding, levels, sequence_length)
         
         self.root = root
         self._get_data_index()
@@ -105,7 +99,7 @@ class E33OMA(E33OMAPAD):
         for root, dirs, files in os.walk(self.root):
             
             sorted_files = sorted(files)
-            list1 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] == 'aijlh1E33oma_ai']   # Velocity Fields (time, level, lat, lon)
+            list1 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] == 'taijlh1E3_oma_ai_prec']   # Velocity Fields (time, level, lat, lon)
 
         # Convert `cftime.DatetimeNoLeap` to `pandas.to_datetime()`
         warnings.filterwarnings("ignore", message="Converting a CFTimeIndex with dates from a non-standard calendar")
@@ -138,73 +132,46 @@ class E33OMA(E33OMAPAD):
     def __getitem__(self, index):
         
         timesteps = self.X_datetimeindex[index]
-        
-        ls1 = [os.path.join(self.root, f'{ts}.aijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+
+        ls1 = [os.path.join(self.root, f'{ts}.aijlh1E3_oma_ai_prec.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
         ds1 = xr.open_mfdataset(ls1)
         ds1['time'] = ds1.indexes['time'].to_datetimeindex()
 
-        ls2 = [os.path.join(self.root, f'{ts}.cijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+        ls2 = [os.path.join(self.root, f'{ts}.cijlh1E3_oma_ai_prec.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
         ds2 = xr.open_mfdataset(ls2)
         ds2['time'] = ds2.indexes['time'].to_datetimeindex()
-        
-        X1 = ds1['u'].isel(level=0).sel(time=slice(timesteps[0], timesteps[-1]))
-        X2 = ds1['v'].isel(level=0).sel(time=slice(timesteps[0], timesteps[-1]))
-        X3 = ds1['omega'].isel(level=0).sel(time=slice(timesteps[0], timesteps[-1]))
-        
-        X4 = ds2['prec'].sel(time=slice(timesteps[0], timesteps[-1]))
 
-        if self.species == 'seasalt':
+        ls3 = [os.path.join(self.root, f'{ts}.tNDaijh1E3_oma_ai_prec.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+        ds3 = xr.open_mfdataset(ls3)
+        ds3['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ls3 = [os.path.join(self.root, f'{ts}.taijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds3 = xr.open_mfdataset(ls3)
-            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
+        ls4 = [os.path.join(self.root, f'{ts}.taijlh1E3_oma_ai_prec.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
+        ds4 = xr.open_mfdataset(ls4)
+        ds4['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds4 = xr.open_mfdataset(ls4)
-            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
+        X1 = ds1['u'].isel(level=slice(0, self.levels)).sel(time=slice(timesteps[0], timesteps[-1])).values
+        X2 = ds1['v'].isel(level=slice(0, self.levels)).sel(time=slice(timesteps[0], timesteps[-1])).values
+        X3 = ds1['omega'].isel(level=slice(0, self.levels)).sel(time=slice(timesteps[0], timesteps[-1])).values
+        X4 = ds2['prec_3d_sum'].isel(level=slice(0, self.levels)).sel(time=slice(timesteps[0], timesteps[-1])).values
 
-            X5 = ds3['seasalt1_ocean_src'].sel(time=slice(timesteps[0], timesteps[-1]))
-            y  = ds4['seasalt1'].isel(level=0).sel(time=self.datetimeindex[index]).values
-            y  = y[np.newaxis, np.newaxis, :, :]
+        X5 = ds3['BCB_biomass_src'].sel(time=slice(timesteps[0], timesteps[-1])).values # (time, 1, lat, lon) (48, 1, 90, 144)
 
-        if self.species == 'clay':
+        y = ds4['BCB'].isel(level=slice(0, self.levels)).sel(time=self.datetimeindex[index]).values
+        y  = y[np.newaxis, :, :, :]
 
-            ls3 = [os.path.join(self.root, f'{ts}.tNDaijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds3 = xr.open_mfdataset(ls3)
-            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
 
-            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds4 = xr.open_mfdataset(ls4)
-            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
+        X = np.stack([X1, X2, X3, X4], axis=1) # (time, level, lat, lon) (48, 4, 30, 90, 144)
 
-            X5 = ds3['Clay_emission'].sel(time=slice(timesteps[0], timesteps[-1]))
-            y  = ds4['Clay'].isel(level=0).sel(time=self.datetimeindex[index]).values
-            y  = y[np.newaxis, np.newaxis, :, :]
+        print(X.shape, X5.shape, y.shape)
+        # X = (X - self.X_mean) / self.X_std
+        # y = (y - self.y_mean) / self.y_std
 
-        if self.species == 'bcb':
+        # if self.padding != [0, 0]:
+        #     X = self._padding_data(X) # (5, seq_len, 90 + (2xpadding), 144 + (2xpadding))
+        #     # TODO: add padding for X1
 
-            ls3 = [os.path.join(self.root, f'{ts}.tNDaijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds3 = xr.open_mfdataset(ls3)
-            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
-
-            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds4 = xr.open_mfdataset(ls4)
-            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
-
-            X5 = ds3['BCB_biomass_src'].sel(time=slice(timesteps[0], timesteps[-1]))
-            y  = ds4['BCB'].isel(level=0).sel(time=self.datetimeindex[index]).values
-            y  = y[np.newaxis, np.newaxis, :, :]
-
-        X = np.stack([X1, X2, X3, X4, X5], axis=1) # (sequence_length, channels, height, width)
-
-        X = (X - self.X_mean) / self.X_std
-        y = (y - self.y_mean) / self.y_std
-
-        if self.padding != [0, 0]:
-            X = self._padding_data(X) # (5, seq_len, 90 + (2xpadding), 144 + (2xpadding))
-
-        X = torch.from_numpy(X).type(torch.float32) # torch image: (channels, sequence_length, height, width)
-        y = torch.from_numpy(y).type(torch.float32) # torch image: (channels, sequence_length, height, width)
+        # X = torch.from_numpy(X).type(torch.float32) # torch image: (channels, sequence_length, height, width)
+        # y = torch.from_numpy(y).type(torch.float32) # torch image: (channels, sequence_length, height, width)
 
         return X, y 
         
