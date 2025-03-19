@@ -70,12 +70,12 @@ class STMLightning(pl.LightningModule):
         }
         self.losses = [loss_dict[loss] for loss in self.model_args['loss']]
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, x, e):
+        return self.model(x, e)
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
-        y_hat = self.forward(x)
+        x, e, y = batch
+        y_hat = self.forward(x, e)
         y_hat = y_hat[..., 
                       self.data_args['padding'][0]:self.data_args['padding'][0]+self.data_args['size'][0], 
                       self.data_args['padding'][1]:self.data_args['padding'][1]+self.data_args['size'][1]]
@@ -86,8 +86,8 @@ class STMLightning(pl.LightningModule):
         return total_loss
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch
-        y_hat = self.forward(x)
+        x, e, y = batch
+        y_hat = self.forward(x, e)
         y_hat = y_hat[..., 
                       self.data_args['padding'][0]:self.data_args['padding'][0]+self.data_args['size'][0], 
                       self.data_args['padding'][1]:self.data_args['padding'][1]+self.data_args['size'][1]]
