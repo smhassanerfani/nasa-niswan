@@ -14,11 +14,11 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 
 pl.seed_everything(42)
 
+# Set environment variables to help manage CUDA memory
+os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-214cfb66-c8e5-57f2-b101-90f2cca83fad"
+
 torch.cuda.empty_cache()
 torch.set_float32_matmul_precision('medium')
-
-# Set environment variables to help manage CUDA memory
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 def main(args):
 
