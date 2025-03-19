@@ -245,7 +245,7 @@ class RMSELoss(nn.Module):
             self.lat = torch.cat((torch.tensor([-32]), torch.linspace(-30, 30, 30), torch.tensor([32])))
 
     def forward(self, y_pred, y_true):
-        B, T, C, N_lat, N_lon = y_pred.shape
+        B, T, C, VL, N_lat, N_lon = y_pred.shape
         # Move latitude tensor to the same device as y_pred
         device = y_pred.device
         lat = self.lat.to(device)
@@ -254,9 +254,9 @@ class RMSELoss(nn.Module):
         L /= L.sum()  # Normalize weights
         # Compute weighted squared error
         squared_errors = (y_pred - y_true) ** 2
-        weighted_errors = (L[None, None, None, :, None] * squared_errors).sum()
+        weighted_errors = (L[None, None, None, None, :, None] * squared_errors).sum()
         # Compute RMSE
-        rmse = torch.sqrt(weighted_errors / (B * T * C * N_lat * N_lon))
+        rmse = torch.sqrt(weighted_errors / (B * T * C * VL * N_lat * N_lon))
         return rmse
 
 
