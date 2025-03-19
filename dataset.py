@@ -87,7 +87,7 @@ class E33OMAPAD(Dataset):
 
 class E33OMA(E33OMAPAD):
 
-    def __init__(self, period, species, padding, levels=22, sequence_length=32, root='/home/serfani/serfani_data1/E3OMA3D-1950/'):
+    def __init__(self, period, species, padding, levels=62, sequence_length=48, root='/home/serfani/serfani_data1/E3OMA3D-1950/'):
         super(E33OMA, self).__init__(period, species, padding, levels, sequence_length)
         
         self.root = root
@@ -192,6 +192,7 @@ class E33OMAModule(pl.LightningDataModule):
         self.data_name = data_args['data_name']
         self.species = data_args['species']
         self.padding = data_args['padding']
+        self.levels = data_args['levels']
         self.seq_len = data_args['sequence_length']
         self.batch_size = data_args['batch_size']
         self.num_workers = data_args['num_workers']
@@ -205,8 +206,10 @@ class E33OMAModule(pl.LightningDataModule):
         # This method sets up the train, validation, and test datasets.
         # It is called on every GPU separately.
         if 'E33OMA' == self.data_name:
-            self.train_dataset = E33OMA(period='train', padding= self.padding, species=self.species, sequence_length=self.seq_len)
-            self.val_dataset = E33OMA(period='val',  padding= self.padding, species=self.species, sequence_length=self.seq_len)
+            self.train_dataset = E33OMA(period='train', padding= self.padding, species=self.species,
+                                        levels=self.levels, sequence_length=self.seq_len)
+            self.val_dataset = E33OMA(period='val',  padding= self.padding, species=self.species, 
+                                      levels=self.levels, sequence_length=self.seq_len)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
@@ -219,7 +222,7 @@ class E33OMAModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     
-    dataset = E33OMA(period='val', padding=[5, 5], species='bcb', levels=10, sequence_length=48)
+    dataset = E33OMA(period='val', padding=[5, 5], species='bcb', levels=22, sequence_length=32)
     dataloader = DataLoader(dataset, batch_size=8, num_workers=4, shuffle=True)
     dataiter = iter(dataloader)
 
