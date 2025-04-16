@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-from src import ConvLSTM, SimVP_Model, Conv3D, SAConvLSTM 
+from src import ConvLSTM, SimVP_Model, Conv3D, SAConvLSTM, FMEncoder 
 from utils import RMSELoss
 
 class STMLightning(pl.LightningModule):
@@ -20,13 +20,28 @@ class STMLightning(pl.LightningModule):
 
         if 'ConvLSTM' == self.model_args['model_name']:
 
-            self.model = ConvLSTM(
-                image_size=image_size,
-                in_channels=self.model_args['in_channels'], 
-                out_channels=self.model_args['out_channels'], 
-                hidden_channels=self.model_args['encoder_channels'],
-                kernel_size=self.model_args['kernel_size']
-                )
+            class Model(nn.Module):
+                def __init__(self, image_size, model_args, data_args):
+                    super(Model, self).__init__()
+                    self.encoder = FMEncoder(forcing_channels=data_args['levels']*10)
+                    self.decoder = ConvLSTM(
+                        image_size=image_size,
+                        in_channels=model_args['in_channels'], 
+                        out_channels=model_args['out_channels'], 
+                        hidden_channels=model_args['encoder_channels'],
+                        kernel_size=model_args['kernel_size']
+                    )
+
+                def forward(self, e, f):
+                    x = self.encoder(e, f)
+                    y = self.decoder(x)
+                    return y
+            
+            self.model = Model(
+                image_size=image_size, 
+                model_args=self.model_args,
+                data_args=self.data_args
+            )
 
         elif 'SimVP' == self.model_args['model_name']:
             self.model = SimVP_Model(
@@ -70,12 +85,12 @@ class STMLightning(pl.LightningModule):
         }
         self.losses = [loss_dict[loss] for loss in self.model_args['loss']]
 
-    def forward(self, x, e):
-        return self.model(x, e)
+    def forward(self, e, f):
+        return self.model(e, f)
 
     def training_step(self, batch, batch_idx):
-        x, e, y = batch
-        y_hat = self.forward(x, e)
+        e, f, y = batch
+        y_hat = self.forward(e, f)
         y_hat = y_hat[..., 
                       self.data_args['padding'][0]:self.data_args['padding'][0]+self.data_args['size'][0], 
                       self.data_args['padding'][1]:self.data_args['padding'][1]+self.data_args['size'][1]]
@@ -86,8 +101,8 @@ class STMLightning(pl.LightningModule):
         return total_loss
 
     def validation_step(self, batch, batch_idx):
-        x, e, y = batch
-        y_hat = self.forward(x, e)
+        e, f, y = batch
+        y_hat = self.forward(e, f)
         y_hat = y_hat[..., 
                       self.data_args['padding'][0]:self.data_args['padding'][0]+self.data_args['size'][0], 
                       self.data_args['padding'][1]:self.data_args['padding'][1]+self.data_args['size'][1]]
