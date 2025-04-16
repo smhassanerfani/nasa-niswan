@@ -1,4 +1,8 @@
 import os
+# Set environment variables to help manage CUDA memory
+os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-214cfb66-c8e5-57f2-b101-90f2cca83fad"
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+
 import yaml
 import argparse
 from datetime import datetime
@@ -13,9 +17,6 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 pl.seed_everything(42)
-
-# Set environment variables to help manage CUDA memory
-os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-214cfb66-c8e5-57f2-b101-90f2cca83fad"
 
 torch.cuda.empty_cache()
 torch.set_float32_matmul_precision('medium')
@@ -65,7 +66,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config-filepath', help='Provide the filepath string to the model config...', default='configs/ConvLSTM-02102025.yaml')
+    parser.add_argument('--config-filepath', help='Provide the filepath string to the model config...', default='configs/ConvLSTM-04152025.yaml')
     
     args = parser.parse_args()
     main(args)
