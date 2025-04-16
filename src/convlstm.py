@@ -92,13 +92,19 @@ class ConvLSTM(nn.Module):
                 x_t = h  # Output of the current layer is the input to the next layer
             # outputs.append(self.conv(h)) 
 
-        return self.conv(h).unsqueeze(dim=1) # , torch.cat(outputs, dim=1)
+        return self.conv(h).unsqueeze(dim=1).unsqueeze(dim=1) # , torch.cat(outputs, dim=1)
 
 
 if __name__ == '__main__':
-    x = torch.randn((2, 48, 5, 100, 154))
+    from module import FMEncoder
+    
+    e = torch.randn((2, 48, 7, 1, 90, 144))
+    f = torch.randn((2, 48, 10, 5, 90, 144))
+    m1 = FMEncoder(forcing_channels=50)
+    x = m1(e, f)
+    print(x.size())
 
-    model = ConvLSTM((100, 154), 5, 1, [64, 32, 16], [7, 5, 3])
-    print(model(x).shape)
-    print(model)
+    m2 = ConvLSTM((90, 144), 64, 5, [64, 64, 64], [3, 3, 3])
+    print(m2(x).shape)
+    print(m2)
   
