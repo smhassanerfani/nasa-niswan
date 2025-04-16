@@ -1,6 +1,7 @@
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from timm.layers import DropPath, trunc_normal_
 
@@ -215,3 +216,80 @@ class GASubBlock(nn.Module):
             self.layer_scale_2.unsqueeze(-1).unsqueeze(-1) * self.mlp(self.norm2(x)))
         return x
 
+
+class FMEncoder(nn.Module):
+    def __init__(self, emission_channels=7, forcing_channels=300):
+        super(FMEncoder, self).__init__()
+       
+        self.enc1 = Encoder(in_channels=emission_channels, kernel_size=5)
+        self.enc2 = Encoder(in_channels=forcing_channels, kernel_size=5)
+        self.sft = SFTLayer(64, 64)
+
+    def forward(self, e, f):
+
+        B, T, C1, _, H, W = e.size()
+        B, T, C2, L, H, W = f.size()
+
+        e = e.view(B*T, C1, H, W)    # [96, 7, 90, 144]
+        f = f.view(B*T, C2*L, H, W)  # [96, 300, 90, 144]
+        
+        e = self.enc1(e)
+        f = self.enc2(f)
+
+        x = self.sft(e, f) # M(e|f)  # [96, 256, 90, 144]
+        x = x.view(B, T, 64, H, W)  # [2, 48, 256, 90, 144]
+
+        return x
+
+
+class SFTLayer(nn.Module):
+    def __init__(self, inc, outc):
+        super(SFTLayer, self).__init__()
+        self.SFT_scale_conv0 = nn.Conv2d(inc, 64, 1)
+        self.SFT_scale_conv1 = nn.Conv2d(64, 64, 1)
+        self.SFT_scale_conv2 = nn.Conv2d(64, outc, 1)
+        self.SFT_shift_conv0 = nn.Conv2d(inc, 64, 1)
+        self.SFT_shift_conv1 = nn.Conv2d(64, 64, 1)
+        self.SFT_shift_conv2 = nn.Conv2d(64, outc, 1)
+
+    def forward(self, e, f): # M(e|f)
+        scale = self.SFT_scale_conv2(self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(f), 0.1, inplace=True)))
+        shift = self.SFT_shift_conv2(self.SFT_shift_conv1(F.leaky_relu(self.SFT_shift_conv0(f), 0.1, inplace=True)))
+        return e * (scale + 1) + shift
+
+
+class Encoder(nn.Module):
+    def __init__(self, in_channels, kernel_size):
+        super(Encoder, self).__init__()
+        self.conv0 = nn.Conv2d(in_channels, 64, kernel_size=1, stride=1)
+        self.conv1 = ConvLayer(64, 64, kernel_size, stride=1)
+        self.conv2 = ConvLayer(64, 64, kernel_size, stride=1)
+        # self.conv3 = ConvLayer(64, 64, kernel_size, stride=1)
+        # self.conv4 = ConvLayer(64, 64, kernel_size, stride=1)
+    
+    def forward(self, x):
+        x = self.conv0(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        # x = self.conv3(x)
+        # x = self.conv4(x)
+        return x
+
+
+class ConvLayer(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride):
+        super(ConvLayer, self).__init__()
+        padding = (kernel_size - stride + 1) // 2
+        self.conv = nn.Conv2d(
+            in_channels, out_channels, kernel_size=kernel_size,
+            stride=stride, padding=padding
+        )
+        self.norm = nn.GroupNorm(4, out_channels)
+        self.act = nn.SiLU(inplace=True)
+
+    def forward(self, x):
+        residual = x
+        x = self.conv(x)
+        x = self.norm(x)
+        x = self.act(x)
+        return x + residual
