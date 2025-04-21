@@ -90,7 +90,7 @@ class ConvLSTM(nn.Module):
                 h, c = self.layers[layer_idx](x_t, (h, c))
                 hidden_states[layer_idx] = (h, c)
                 x_t = h  # Output of the current layer is the input to the next layer
-            # outputs.append(self.conv(h)) 
+            # outputs.append(self.conv(h).unsqueeze(dim=1)) 
 
         return self.conv(h).unsqueeze(dim=1) # , torch.cat(outputs, dim=1)
 
@@ -99,6 +99,8 @@ if __name__ == '__main__':
     x = torch.randn((2, 48, 5, 100, 154))
 
     model = ConvLSTM((100, 154), 5, 1, [64, 32, 16], [7, 5, 3])
+    # y, h = model(x)
+    # print(y.shape, h.shape)
     print(model(x).shape)
     print(model)
   
