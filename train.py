@@ -1,7 +1,12 @@
 import os
 # Set environment variables to help manage CUDA memory
-os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-214cfb66-c8e5-57f2-b101-90f2cca83fad"
+# os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-214cfb66-c8e5-57f2-b101-90f2cca83fad"
+os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-fa1984f9-0d1d-5db1-84b5-2972492c47f8"
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+
+# Set the number of threads for OpenMP and MKL
+os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
 
 import yaml
 import argparse
@@ -17,6 +22,9 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 pl.seed_everything(42)
+
+torch.set_num_threads(4)
+torch.set_num_interop_threads(4)
 
 torch.cuda.empty_cache()
 torch.set_float32_matmul_precision('medium')
