@@ -223,7 +223,7 @@ class FMEncoder(nn.Module):
        
         self.enc1 = Encoder(in_channels=emission_channels, kernel_size=5)
         self.enc2 = Encoder(in_channels=forcing_channels, kernel_size=5)
-        self.sft = SFTLayer(64, 64)
+        self.sft = SFTLayer(128, 128)
 
     def forward(self, e, f):
 
@@ -237,7 +237,7 @@ class FMEncoder(nn.Module):
         f = self.enc2(f)
 
         x = self.sft(e, f) # M(e|f)  # [96, 256, 90, 144]
-        x = x.view(B, T, 64, H, W)  # [2, 48, 256, 90, 144]
+        x = x.view(B, T, 128, H, W)  # [2, 48, 256, 90, 144]
 
         return x
 
@@ -245,12 +245,12 @@ class FMEncoder(nn.Module):
 class SFTLayer(nn.Module):
     def __init__(self, inc, outc):
         super(SFTLayer, self).__init__()
-        self.SFT_scale_conv0 = nn.Conv2d(inc, 64, 1)
-        self.SFT_scale_conv1 = nn.Conv2d(64, 64, 1)
-        self.SFT_scale_conv2 = nn.Conv2d(64, outc, 1)
-        self.SFT_shift_conv0 = nn.Conv2d(inc, 64, 1)
-        self.SFT_shift_conv1 = nn.Conv2d(64, 64, 1)
-        self.SFT_shift_conv2 = nn.Conv2d(64, outc, 1)
+        self.SFT_scale_conv0 = nn.Conv2d(inc, 128, 1)
+        self.SFT_scale_conv1 = nn.Conv2d(128, 128, 1)
+        self.SFT_scale_conv2 = nn.Conv2d(128, outc, 1)
+        self.SFT_shift_conv0 = nn.Conv2d(inc, 128, 1)
+        self.SFT_shift_conv1 = nn.Conv2d(128, 128, 1)
+        self.SFT_shift_conv2 = nn.Conv2d(128, outc, 1)
 
     def forward(self, e, f): # M(e|f)
         scale = self.SFT_scale_conv2(self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(f), 0.1, inplace=True)))
@@ -261,11 +261,11 @@ class SFTLayer(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, in_channels, kernel_size):
         super(Encoder, self).__init__()
-        self.conv0 = nn.Conv2d(in_channels, 64, kernel_size=1, stride=1)
-        self.conv1 = ConvLayer(64, 64, kernel_size, stride=1)
-        self.conv2 = ConvLayer(64, 64, kernel_size, stride=1)
-        # self.conv3 = ConvLayer(64, 64, kernel_size, stride=1)
-        # self.conv4 = ConvLayer(64, 64, kernel_size, stride=1)
+        self.conv0 = nn.Conv2d(in_channels, 128, kernel_size=1, stride=1)
+        self.conv1 = ConvLayer(128, 128, kernel_size, stride=1)
+        self.conv2 = ConvLayer(128, 128, kernel_size, stride=1)
+        # self.conv3 = ConvLayer(256, 256, kernel_size, stride=1)
+        # self.conv4 = ConvLayer(256, 256, kernel_size, stride=1)
     
     def forward(self, x):
         x = self.conv0(x)
