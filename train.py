@@ -1,7 +1,6 @@
 import os
 # Set environment variables to help manage CUDA memory
-# os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-214cfb66-c8e5-57f2-b101-90f2cca83fad"
-os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-fa1984f9-0d1d-5db1-84b5-2972492c47f8"
+os.environ['CUDA_VISIBLE_DEVICES'] = "MIG-214cfb66-c8e5-57f2-b101-90f2cca83fad"
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # Set the number of threads for OpenMP and MKL
@@ -38,22 +37,31 @@ def main(args):
     model_args = hyperparams['model_args']
     data_args = hyperparams['data_args']
     
-    # Initialize model (model_args=model_args, data_args=data_args)
-    model = STMLightning(model_args=model_args, data_args=data_args)
-    dm = E33OMAModule(data_args)
-
     # Get the current date and time
     now = datetime.now()
     formatted_date_time = now.strftime("%m%d%Y-%H%M")
 
-    # Initialize training
     model_args['log_name'] = model_args['model_name'] + '-' + formatted_date_time
-    tb_logger = TensorBoardLogger(save_dir=model_args['log_dir'], name=model_args['log_name'])
-    # checkpoint_callback = ModelCheckpoint(monitor='val_loss', mode='min')
+    # model_args['log_name'] = 'ConvLSTM-07032025-1434'
+
+    # checkpoint_path = None
+    checkpoint_path = '/home/serfani/serfani_data1/snapshots/ConvLSTM-07032025-1434/version_0/checkpoints/epoch=49-step=393700.ckpt'
+
+    # Initialize model
+    # model = STMLightning(model_args=model_args, data_args=data_args)
+    model = STMLightning.load_pretrained(
+        checkpoint_path=checkpoint_path,
+        model_args=model_args,
+        data_args=data_args
+    )
+    dm = E33OMAModule(data_args)
+
+    # Initialize logger with the consistent log_name
+    tb_logger = TensorBoardLogger(save_dir=model_args['log_dir'], name=model_args['log_name'], version=0)
+
     checkpoint_callback = ModelCheckpoint(
         monitor='val_loss',
         # dirpath=os.path.join(model_args['log_dir'], model_args['log_name'], 'checkpoints'),
-        # filename=model_args['model_name'] + '-{epoch:02d}-{step}',
         save_top_k=1,
         mode='min',
         save_last=True
@@ -65,10 +73,11 @@ def main(args):
         devices=1,
         precision=32,
         logger=tb_logger,
-        callbacks=[checkpoint_callback]
+        callbacks=[checkpoint_callback],
+        enable_checkpointing=True
         )
-    
-    trainer.fit(model, datamodule=dm)
+
+    trainer.fit(model, datamodule=dm, ckpt_path=None)
     trainer.validate(model, datamodule=dm)
 
 

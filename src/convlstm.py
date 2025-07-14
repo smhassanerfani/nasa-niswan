@@ -98,7 +98,7 @@ class ConvLSTM(nn.Module):
 if __name__ == '__main__':
     from module import FMEncoder
     
-    e = torch.randn((2, 48, 7, 1, 90, 144))
+    e = torch.randn((2, 48, 6, 1, 90, 144))
     f = torch.randn((2, 48, 10, 5, 90, 144))
     m1 = FMEncoder(forcing_channels=50)
     x = m1(e, f)
