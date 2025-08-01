@@ -31,7 +31,7 @@ torch.set_float32_matmul_precision('medium')
 def main(args):
 
     # Retrieve hyperparameters
-    with open(args.config_filepath, 'r') as config_filepath:
+    with open(args.configdir, 'r') as config_filepath:
         hyperparams = yaml.load(config_filepath, Loader=yaml.FullLoader)
         
     model_args = hyperparams['model_args']
@@ -83,7 +83,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config-filepath', help='Provide the filepath string to the model config...', default='configs/ConvLSTM-04152025.yaml')
+    parser.add_argument('--configdir', help='Provide the filepath string to the model config...', default='configs/ConvLSTM-03102025.yaml')
     
     args = parser.parse_args()
     main(args)
