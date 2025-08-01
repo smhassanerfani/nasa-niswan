@@ -23,7 +23,7 @@ class STMLightning(pl.LightningModule):
             class Model(nn.Module):
                 def __init__(self, image_size, model_args, data_args):
                     super(Model, self).__init__()
-                    self.encoder = FMEncoder(forcing_channels=data_args['levels']*8, dropout=0.1)
+                    self.encoder = FMEncoder(forcing_channels=data_args['levels']*8, dropout=0.0)
                     self.decoder = ConvLSTM(
                         image_size=image_size,
                         in_channels=model_args['in_channels'], 
@@ -145,18 +145,17 @@ class STMLightning(pl.LightningModule):
             interval = 'epoch'
         elif self.model_args['scheduler'] == 'CosineAnnealingLR':
             # Warm-up: start from 10% of lr and ramp to full lr over 10 epochs
-            # warmup_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, **self.model_args['scheduler_params']['warmup_scheduler'])
+            warmup_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, **self.model_args['scheduler_params']['warmup_scheduler'])
             
             # Main scheduler: decay from lr=1e-3 using cosine over the remaining epochs
-            # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, **self.model_args['scheduler_params']['cosine_scheduler'])
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, **self.model_args['scheduler_params']['cosine_scheduler'])
+            cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, **self.model_args['scheduler_params']['cosine_scheduler'])
             
-            # Combine them
-            # scheduler = torch.optim.lr_scheduler.SequentialLR(
-            #     optimizer,
-            #     schedulers=[warmup_scheduler, cosine_scheduler],
-            #     milestones=self.model_args['scheduler_params']['warmup_milestones']  # switch from warm-up to cosine
-            # )
+            # Combine Schedulers
+            scheduler = torch.optim.lr_scheduler.SequentialLR(
+                optimizer,
+                schedulers=[warmup_scheduler, cosine_scheduler],
+                milestones=self.model_args['scheduler_params']['warmup_milestones']  # switch from warm-up to cosine
+            )
                 
             interval = 'epoch'
         elif self.model_args['scheduler'] == 'OneCycleLR':
