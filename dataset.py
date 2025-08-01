@@ -116,12 +116,12 @@ class E3OMA(E33OMAPAD):
     """Optimized E33OMA dataset using Zarr storage"""
     
     def __init__(self, period, species, padding, levels=30, sequence_length=48, 
-                 zarr_path='/home/serfani/serfani_data0/E3OMA2010D.zarr'):
+                 zarr_path='/home/serfani/serfani_data0/E3OMA1850.zarr'):
 
         super().__init__(period, species, padding, levels, sequence_length)
 
         # Open zarr store
-        self.ds = xr.open_zarr(zarr_path, consolidated=True)
+        self.ds = xr.open_zarr(zarr_path, consolidated=True, chunks='auto')
         
         # Get coordinate information
         self.times = self.ds.time.values
@@ -222,11 +222,21 @@ class E33OMAModule(pl.LightningDataModule):
 
     def setup(self, stage: str = None):
 
-        # if 'E3OMA' == self.data_name:
-        self.train_dataset = E3OMA(period='train', padding= self.padding, species=self.species,
-                                    levels=self.levels, sequence_length=self.seq_len)
-        self.val_dataset = E3OMA(period='val',  padding= self.padding, species=self.species, 
-                                    levels=self.levels, sequence_length=self.seq_len)
+        if 'E3OMA1850' == self.data_name:
+            self.train_dataset = E3OMA(period='train', padding= self.padding, species=self.species,
+                                        levels=self.levels, sequence_length=self.seq_len,
+                                        zarr_path='/home/serfani/serfani_data0/E3OMA1850.zarr')
+            self.val_dataset = E3OMA(period='val',  padding= self.padding, species=self.species, 
+                                        levels=self.levels, sequence_length=self.seq_len,
+                                        zarr_path='/home/serfani/serfani_data0/E3OMA1850.zarr')
+        
+        elif 'E3OMA2010D' == self.data_name:
+            self.train_dataset = E3OMA(period='train', padding= self.padding, species=self.species,
+                                        levels=self.levels, sequence_length=self.seq_len,
+                                        zarr_path='/home/serfani/serfani_data0/E3OMA2010D.zarr')
+            self.val_dataset = E3OMA(period='val',  padding= self.padding, species=self.species, 
+                                        levels=self.levels, sequence_length=self.seq_len,
+                                        zarr_path='/home/serfani/serfani_data0/E3OMA2010D.zarr')
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
@@ -234,7 +244,7 @@ class E33OMAModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
-                          persistent_workers=True, pin_memory=True)
+                            shuffle=False, persistent_workers=True, pin_memory=True)
 
 
 if __name__ == '__main__':
