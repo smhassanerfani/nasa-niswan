@@ -44,16 +44,16 @@ def main(args):
     model_args['log_name'] = model_args['model_name'] + '-' + formatted_date_time
     # model_args['log_name'] = 'ConvLSTM-07032025-1434'
 
-    # checkpoint_path = None
-    checkpoint_path = '/home/serfani/serfani_data1/snapshots/ConvLSTM-07032025-1434/version_0/checkpoints/epoch=49-step=393700.ckpt'
+    checkpoint_path = None
+    # checkpoint_path = '/home/serfani/serfani_data1/snapshots/ConvLSTM-07032025-1434/version_0/checkpoints/epoch=49-step=393700.ckpt'
 
     # Initialize model
-    # model = STMLightning(model_args=model_args, data_args=data_args)
-    model = STMLightning.load_pretrained(
-        checkpoint_path=checkpoint_path,
-        model_args=model_args,
-        data_args=data_args
-    )
+    model = STMLightning(model_args=model_args, data_args=data_args)
+    # model = STMLightning.load_pretrained(
+    #     checkpoint_path=checkpoint_path,
+    #     model_args=model_args,
+    #     data_args=data_args
+    # )
     dm = E33OMAModule(data_args)
 
     # Initialize logger with the consistent log_name

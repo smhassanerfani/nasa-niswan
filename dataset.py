@@ -121,7 +121,7 @@ class E3OMA(E33OMAPAD):
         super().__init__(period, species, padding, levels, sequence_length)
 
         # Open zarr store
-        self.ds = xr.open_zarr(zarr_path, consolidated=True, chunks='auto')
+        self.ds = xr.open_zarr(zarr_path, consolidated=True, chunks='auto').isel(time=slice(17520, None))
         
         # Get coordinate information
         self.times = self.ds.time.values
@@ -140,7 +140,9 @@ class E3OMA(E33OMAPAD):
         X_datetimeindex = self.create_sequences(self.times)
         y_datetimeindex = self.times[self.seq_len - 1:]
 
-        idx = np.arange((2 * 365 * 48) - self.seq_len + 1)  # Total number of samples
+        idx = np.arange((365 * 48) - self.seq_len + 1)  # Total number of samples
+        cap = 2 * 365 * 48 - self.seq_len + 1
+
         rng = np.random.default_rng(42)
         rng.shuffle(idx)
 
@@ -156,8 +158,8 @@ class E3OMA(E33OMAPAD):
             self.datetimeindex   = y_datetimeindex[idx[split_point:]]
         
         if self.period == 'test':
-            self.X_datetimeindex = X_datetimeindex[len(idx):]
-            self.datetimeindex   = y_datetimeindex[len(idx):]
+            self.X_datetimeindex = X_datetimeindex[len(idx):cap]
+            self.datetimeindex   = y_datetimeindex[len(idx):cap]
     
     def create_sequences(self, data_array):
         return np.array([data_array[i:i+self.seq_len] for i in range(len(data_array)-self.seq_len+1)])
@@ -249,7 +251,7 @@ class E33OMAModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     
-    dataset = E3OMA(period='val', padding=[5, 5], species='bcb', levels=20, sequence_length=48)
+    dataset = E3OMA(period='test', padding=[5, 5], species='bcb', levels=20, sequence_length=48)
     dataloader = DataLoader(dataset, batch_size=4, num_workers=4, shuffle=True, persistent_workers=True, pin_memory=True)
 
     print(len(dataset))
