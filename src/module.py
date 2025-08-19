@@ -221,8 +221,8 @@ class FMEncoder(nn.Module):
     def __init__(self, emission_channels=6, forcing_channels=8*20, dropout=0.0):
         super(FMEncoder, self).__init__()
 
-        self.enc1 = Encoder(in_channels=emission_channels, kernel_size=5, dropout=dropout)
-        self.enc2 = Encoder(in_channels=forcing_channels, kernel_size=5, dropout=dropout)
+        # self.enc1 = Encoder(in_channels=emission_channels, kernel_size=5, dropout=dropout)
+        # self.enc2 = Encoder(in_channels=forcing_channels, kernel_size=5, dropout=dropout)
         self.sft = SFTLayer(64, 64)
 
     def forward(self, e, f):
@@ -233,8 +233,8 @@ class FMEncoder(nn.Module):
         e = e.view(B*T, C1, H, W)    # [96, 6, 90, 144]
         f = f.view(B*T, C2*L, H, W)  # [96, 160, 90, 144]
         
-        e = self.enc1(e)
-        f = self.enc2(f)
+        # e = self.enc1(e)
+        # f = self.enc2(f)
 
         x = self.sft(e, f) # M(e|f)  # [96, 64, 90, 144]
         x = x.view(B, T, 64, H, W)   # [2, 48, 64, 90, 144]
@@ -252,7 +252,13 @@ class SFTLayer(nn.Module):
         self.SFT_shift_conv1 = nn.Conv2d(64, 64, 1)
         self.SFT_shift_conv2 = nn.Conv2d(64, outc, 1)
 
+        self.conv1 = nn.Conv2d(6, 64, kernel_size=1, stride=1)
+        self.conv2 = nn.Conv2d(160, 64, kernel_size=1, stride=1)
+
     def forward(self, e, f): # M(e|f)
+        e = self.conv1(e)  # [96, 64, 90, 144]
+        f = self.conv2(f)  # [96, 64, 90,
+        
         scale = self.SFT_scale_conv2(self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(f), 0.1, inplace=True)))
         shift = self.SFT_shift_conv2(self.SFT_shift_conv1(F.leaky_relu(self.SFT_shift_conv0(f), 0.1, inplace=True)))
         return e * (scale + 1) + shift
