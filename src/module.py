@@ -221,9 +221,7 @@ class FMEncoder(nn.Module):
     def __init__(self, emission_channels=6, forcing_channels=8*20, dropout=0.0):
         super(FMEncoder, self).__init__()
 
-        self.enc1 = Encoder(in_channels=emission_channels, kernel_size=5, dropout=dropout)
-        self.enc2 = Encoder(in_channels=forcing_channels, kernel_size=5, dropout=dropout)
-        self.sft = SFTLayer(64, 64)
+        self.bottleneck = nn.Conv2d(166, 64, 1)
 
     def forward(self, e, f):
 
@@ -233,10 +231,9 @@ class FMEncoder(nn.Module):
         e = e.view(B*T, C1, H, W)    # [96, 6, 90, 144]
         f = f.view(B*T, C2*L, H, W)  # [96, 160, 90, 144]
         
-        e = self.enc1(e)
-        f = self.enc2(f)
+        x = torch.cat([e, f], dim=1)
+        x = self.bottleneck(x)
 
-        x = self.sft(e, f) # M(e|f)  # [96, 64, 90, 144]
         x = x.view(B, T, 64, H, W)   # [2, 48, 64, 90, 144]
 
         return x
