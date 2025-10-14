@@ -65,7 +65,7 @@ class E33OMAPAD(Dataset):
         with open('statistics/1850.json', 'r') as jf:
             data = json.load(jf)
 
-        with xr.open_dataset('/home/serfani/serfani_data1/E3OMA1950/ANN1950.xaijE33oma_ai.nc', decode_times=False) as ds:
+        with xr.open_dataset('/home/serfani/serfani_nas_share/dataset/E3OMA1950/ANN1950.xaijE33oma_ai.nc', decode_times=False) as ds:
             ds = ds.isel(time=0).drop_vars('time')
 
             self.XA = ds['axyp'].values
@@ -92,7 +92,7 @@ class E33OMAPAD(Dataset):
         self.X2D_std = np.stack(X2D_std, axis=0).reshape(1, -1, 1, 1, 1)
 
         # 3D vars
-        self.vars_3d = ['u', 'v', 'omega', 'p_3d', 't', 'th', 'q', 'prec_3d_sum']
+        self.vars_3d = ['u', 'v', 'omega', 'p_3d', 't', 'th', 'q', 'prec_3d_sum', 'BCB']
         X3D_avg = []
         X3D_std = []
 
@@ -106,16 +106,16 @@ class E33OMAPAD(Dataset):
         self.X3D_std = np.stack(X3D_std, axis=1)
 
         # Target variable (y)
-        # self.y_mean = np.array(data['BCB']['avg'][:self.levels], dtype=np.float32).reshape(1, 1, self.levels, 1, 1)
-        # self.y_std = np.array(data['BCB']['std'][:self.levels], dtype=np.float32).reshape(1, 1, self.levels, 1, 1) 
-        self.y_mean = np.array(data['BCB']['avg'][0], dtype=np.float32)
-        self.y_std = np.array(data['BCB']['std'][0], dtype=np.float32)
+        self.y_mean = np.array(data['BCB']['avg'][:self.levels], dtype=np.float32).reshape(1, 1, self.levels, 1, 1)
+        self.y_std = np.array(data['BCB']['std'][:self.levels], dtype=np.float32).reshape(1, 1, self.levels, 1, 1) 
+        # self.y_mean = np.array(data['BCB']['avg'][0], dtype=np.float32)
+        # self.y_std = np.array(data['BCB']['std'][0], dtype=np.float32)
 
 
 class E3OMA(E33OMAPAD):
     """Optimized E33OMA dataset using Zarr storage"""
     
-    def __init__(self, period, species, padding, levels=30, sequence_length=48, 
+    def __init__(self, period, species, padding, levels=20, sequence_length=48, 
                  zarr_path='/home/serfani/serfani_data0/E3OMA1850.zarr'):
 
         super().__init__(period, species, padding, levels, sequence_length)
@@ -127,18 +127,21 @@ class E3OMA(E33OMAPAD):
         self.times = self.ds.time.values
         self.lat = self.ds.lat.values
         self.lon = self.ds.lon.values
-        
+
         # Create train/val split
         self._create_data_split()
 
         # Load or compute statistics
         self._get_data_statistics()
-    
+
     def _create_data_split(self):
 
+        X_timestamps = self.times[:-1]
+        y_timestamps = self.times[1:]
+
         # Create sequences
-        X_datetimeindex = self.create_sequences(self.times)
-        y_datetimeindex = self.times[self.seq_len - 1:]
+        X_datetimeindex = self.create_sequences(X_timestamps)
+        y_datetimeindex = self.create_sequences(y_timestamps)
 
         idx = np.arange((2 * 365 * 48) - self.seq_len + 1)  # Total number of samples
         rng = np.random.default_rng(42)
@@ -149,43 +152,43 @@ class E3OMA(E33OMAPAD):
 
         if self.period == 'train':
             self.X_datetimeindex = X_datetimeindex[idx[:split_point]]
-            self.datetimeindex   = y_datetimeindex[idx[:split_point]]
+            self.y_datetimeindex = y_datetimeindex[idx[:split_point]]
         
         elif self.period == 'val':
             self.X_datetimeindex = X_datetimeindex[idx[split_point:]] 
-            self.datetimeindex   = y_datetimeindex[idx[split_point:]]
+            self.y_datetimeindex = y_datetimeindex[idx[split_point:]]
         
         if self.period == 'test':
             self.X_datetimeindex = X_datetimeindex[len(idx):]
-            self.datetimeindex   = y_datetimeindex[len(idx):]
+            self.y_datetimeindex = y_datetimeindex[len(idx):]
     
     def create_sequences(self, data_array):
         return np.array([data_array[i:i+self.seq_len] for i in range(len(data_array)-self.seq_len+1)])
     
     def __len__(self):
-        return len(self.datetimeindex)
+        return len(self.X_datetimeindex)
     
     def __getitem__(self, index):
 
         # Get timesteps for this sample
-        timesteps = self.X_datetimeindex[index]
-        target_time = self.datetimeindex[index]
+        X_timesteps = self.X_datetimeindex[index]
+        y_timesteps = self.y_datetimeindex[index]
 
         # Static variables
         XS = self.ds[['axyp', 'landfr']].to_array().values
-        XS = np.repeat(XS[np.newaxis, :, np.newaxis, ...], self.seq_len, axis=0) # [seq_len, 2, 1, lat, lon]
+        XS = np.repeat(XS[np.newaxis, :, np.newaxis, ...], len(X_timesteps), axis=0) # [seq_len, 2, 1, lat, lon]
 
         # 2D variables
-        X2D = self.ds[self.vars_2d].sel(time=timesteps).to_array().values.transpose(1, 0, 2, 3)
+        X2D = self.ds[self.vars_2d].sel(time=X_timesteps).to_array().values.transpose(1, 0, 2, 3)
         X2D = X2D[:, :, np.newaxis, :, :] # [seq_len, 4, 1, lat, lon]
         X2D = np.concatenate([XS, X2D], axis=1)  # [seq_len, 6, 1, lat, lon]
 
         # 3D variables [seq_len, 8, level, lat, lon]
-        X3D = self.ds[self.vars_3d].sel(time=timesteps, level=slice(1, self.levels)).to_array().values.transpose(1, 0, 2, 3, 4)
+        X3D = self.ds[self.vars_3d].sel(time=X_timesteps, level=slice(1, self.levels)).to_array().values.transpose(1, 0, 2, 3, 4)
 
         # Target variable
-        y = self.ds['BCB'].sel(time=target_time, level=slice(1, self.levels)).values
-        y = y[np.newaxis, np.newaxis, :, :]  # [1, 1, level, lat, lon]
+        y = self.ds['BCB'].sel(time=y_timesteps, level=slice(1, self.levels)).values
+        y = y[:, np.newaxis, ...]  # [seq_len, 1, level, lat, lon]
         
         # Normalize
         X2D = (X2D - self.X2D_mean) / self.X2D_std
@@ -249,10 +252,10 @@ class E33OMAModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     
-    dataset = E3OMA(period='val', padding=[5, 5], species='bcb', levels=20, sequence_length=48)
-    dataloader = DataLoader(dataset, batch_size=4, num_workers=4, shuffle=True, persistent_workers=True, pin_memory=True)
+    dataset = E3OMA(period='val', padding=[83, 56], species='bcb', levels=20, sequence_length=48)
+    dataloader = DataLoader(dataset, batch_size=2, num_workers=0, shuffle=True) # persistent_workers=True, pin_memory=True)
 
-    print(len(dataset))
-
-    for X2D, X3D, y in dataloader:
-        print(X2D.shape, X3D.shape, y.shape)
+    dataiter = iter(dataloader)
+    X2D, X3D, y = next(dataiter)
+    print(X2D.shape, X3D.shape, y.shape)
+    # torch.Size([2, 3, 6, 1, 256, 256]) torch.Size([2, 3, 9, 20, 256, 256]) torch.Size([2, 3, 1, 20, 90, 144])
