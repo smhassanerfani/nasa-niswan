@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-from src import ConvLSTM, SimVP_Model, Conv3D, SAConvLSTM, FMEncoder 
+from src import ConvLSTM, SimVP_Model, Conv3D, SAConvLSTM, FMEncoder, UNet 
 from utils import RMSELoss
 
 class STMLightning(pl.LightningModule):
@@ -17,6 +17,12 @@ class STMLightning(pl.LightningModule):
         image_size=(self.data_args['size'][0] + 2*self.data_args['padding'][0], 
                     self.data_args['size'][1] + 2*self.data_args['padding'][1]
             )   
+        if 'UNet' == self.model_args['model_name']:
+
+            self.model = UNet(
+                in_channels=self.model_args['in_channels'], 
+                out_channels=self.model_args['out_channels'], 
+            )
 
         if 'ConvLSTM' == self.model_args['model_name']:
 
