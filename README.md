@@ -54,7 +54,7 @@ Please cite the following papers when referencing this work or any of the founda
 
 -----
 
-  * **[Manuscript on arXiv](https://arxiv.org/abs/2510.10654)**
+  * **[Manuscript at NeurIPS 2025](https://arxiv.org/abs/2510.10654)**
 
     ```bibtex
     @article{erfani2025interactive,
@@ -65,7 +65,7 @@ Please cite the following papers when referencing this work or any of the founda
     }
     ```
 
-  * **[Manuscript at NeurIPS 2024 Workshop](https://www.climatechange.ai/papers/neurips2024/66)**
+  * **[Manuscript at NeurIPS 2024](https://www.climatechange.ai/papers/neurips2024/66)**
 
     ```bibtex
     @inproceedings{erfani2024spatiotemporal,
