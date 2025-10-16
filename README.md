@@ -27,7 +27,7 @@ This approach effectively shifts the modeling paradigm from simple numerical sol
 The model replaces the full physics solver for tracer transport with an ML component:
 <p align="center">
   <img width="100%" height="100%" src="https://github.com/smhassanerfani/nasa-niswan/blob/main/model_setup.png">
-  Figure 1. ATLANTIS - ArTificiaL And Natural waTer-bodIes dataSet.
+  Figure 1. Concept of spatiotemporal ML-based modeling for predicting BCB concentration.
 </p>
 
 
@@ -50,21 +50,29 @@ $$\text{Concentration}(t) = \text{Smart NINT} \left( \text{Emissions}(t), \text{
 We aim to extend this methodology to other aerosol and gaseous tracers and integrate the Smart NINT framework into the operational ModelE for comprehensive long-term climate projections.
 
 # Reference
-Please cite the following papers when referencing this work or any of the foundational concepts discussed:
+Please cite the following papers when referencing this work or any of the foundational concepts discussed, and use the provided links to find the manuscripts:
 
-```
-@article{erfani2025interactive,
-  title={Interactive Atmospheric Composition Emulation for Next-Generation Earth System Models},
-  author={Erfani, Seyed Mohammad Hassan and Lamb, Kara and Bauer, Susanne and Tsigaridis, Kostas and van Lier-Walqui, Marcus and Schmidt, Gavin},
-  journal={arXiv preprint arXiv:2510.10654},
-  year={2025}
-}
+-----
 
-@inproceedings{erfani2024spatiotemporal,
-  title={Spatio-Temporal Machine Learning Models for Emulation of Global Atmospheric Composition},
-  author={Erfani, Mohammad and Lamb, Kara and Bauer, Susanne and Tsigaridis, Kostas and van Lier-Walqui, Marcus and Schmidt, Gavin},
-  booktitle={NeurIPS 2024 Workshop on Tackling Climate Change with Machine Learning},
-  url={https://www.climatechange.ai/papers/neurips2024/66},
-  year={2024}
-}
-```
+  * **[Manuscript on arXiv](https://arxiv.org/abs/2510.10654)**
+
+    ```bibtex
+    @article{erfani2025interactive,
+      title={Interactive Atmospheric Composition Emulation for Next-Generation Earth System Models},
+      author={Erfani, Seyed Mohammad Hassan and Lamb, Kara and Bauer, Susanne and Tsigaridis, Kostas and van Lier-Walqui, Marcus and Schmidt, Gavin},
+      journal={arXiv preprint arXiv:2510.10654},
+      year={2025}
+    }
+    ```
+
+  * **[Manuscript at NeurIPS 2024 Workshop](https://www.climatechange.ai/papers/neurips2024/66)**
+
+    ```bibtex
+    @inproceedings{erfani2024spatiotemporal,
+      title={Spatio-Temporal Machine Learning Models for Emulation of Global Atmospheric Composition},
+      author={Erfani, Mohammad and Lamb, Kara and Bauer, Susanne and Tsigaridis, Kostas and van Lier-Walqui, Marcus and Schmidt, Gavin},
+      booktitle={NeurIPS 2024 Workshop on Tackling Climate Change with Machine Learning},
+      url={https://www.climatechange.ai/papers/neurips2024/66},
+      year={2024}
+    }
+    ```
