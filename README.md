@@ -1,15 +1,15 @@
-# Smart NINT: Machine Learning Emulation of Interactive Atmospheric Composition
+# Smart-NINT: A Spatio-Temporal Machine Learning Models for Emulation of Global Atmospheric Composition
 
-This repository presents **Smart NINT**, a novel machine learning (ML) framework designed to emulate the computationally expensive process of **interactive atmospheric composition** transport within Earth System Models (ESMs), specifically tested using the NASA GISS-ModelE3 (ModelE).
+This repository presents **Smart NINT**, a spatiotemporal machine learning (ML) framework designed to emulate the computationally expensive process of **interactive atmospheric composition** transport within Earth System Models (ESMs), specifically tested using the NASA GISS ESM V3.0 (ModelE).
 
 ***
 
 ## Overview
 
-Traditional ESMs often rely on pre-computed, static tracer concentrations (**Non-Interactive Tracers, NINT**) to save computational resources, which sacrifices the ability to capture real-time aerosol-climate feedbacks. Smart NINT addresses this limitation by using a **spatiotemporal deep learning architecture** to interactively calculate tracer concentrations, such as **Black Carbon from Biomass Burning (BCB)**, based on real-time surface emissions and meteorological data.
+ESMs often rely on on prescribed monthly tracer concentration fields (**Non-Interactive Tracers, NINT**) to save computational resources, which sacrifices the ability to capture real-time aerosol-climate feedbacks. Smart NINT addresses this limitation by using a **spatiotemporal ML architecture** to interactively calculate tracer concentrations, such as **Black Carbon from Biomass Burning (BCB)**, based on real-time surface emissions and meteorological data.
 
-This approach effectively shifts the modeling paradigm from simple numerical solver mimicry to advanced spatio-temporal forecasting, offering a viable path for higher-resolution, reliable long-term climate projections without the prohibitive cost of full physics parameterizations.
-
+This approach transforms **AI climate modeling** from basic numerical solver mimicry to spatio-temporal prediction. By incorporating architectural components that capture trends, seasonal patterns, and cyclical behaviors, the model can deliver accurate long-term forecasts which is essential for multi-decadal to centennial climate projections. This enables higher-resolution, reliable climate simulations without the prohibitive computational costs of full physics parameterizations.
+ 
 ***
 
 ## Key Features
@@ -49,10 +49,11 @@ $$\text{Concentration}(t) = \text{Smart NINT} \left( \text{Emissions}(t), \text{
 
 We aim to extend this methodology to other aerosol and gaseous tracers and integrate the Smart NINT framework into the operational ModelE for comprehensive long-term climate projections.
 
-# Reference
+***
+
+## Reference
 Please cite the following papers when referencing this work or any of the foundational concepts discussed, and use the provided links to find the manuscripts:
 
------
 
   * **[Manuscript at NeurIPS 2025](https://arxiv.org/abs/2510.10654)**
 
