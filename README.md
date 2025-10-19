@@ -24,10 +24,10 @@ This approach transforms **AI climate modeling** from basic numerical solver mim
 
 ## Model Setup (Conceptual)
 
-The model replaces the full physics solver for tracer transport with an ML component:
+The model replaces the full physics solver for tracer transport with an spatiotemporal ML component:
 <p align="center">
   <img width="100%" height="100%" src="https://github.com/smhassanerfani/nasa-niswan/blob/main/model_setup.png">
-  Figure 1. Concept of spatiotemporal ML-based modeling for predicting BCB concentration.
+  Figure 1. Concept of spatiotemporal ML-based modeling for predicting BCB concentration for climate modeling.
 </p>
 
 
