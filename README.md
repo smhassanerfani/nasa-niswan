@@ -6,6 +6,8 @@
 <a href="https://arxiv.org/pdf/2510.10654" target="_blank">
     <img src="https://img.shields.io/badge/arXiv-2408.11032-b31b1b.svg" alt="ArXiv">
 </a>
+<a href="https://doi.org/10.5281/zenodo.17575784">
+    <img src="https://zenodo.org/badge/771101661.svg" alt="DOI"></a>
 
 This repository presents **Smart NINT**, a spatiotemporal machine learning (ML) framework designed to emulate the computationally expensive process of **interactive atmospheric composition** transport within Earth System Models (ESMs), specifically tested using the NASA GISS ESM V3.0 (ModelE).
 
