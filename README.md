@@ -26,7 +26,7 @@ pip install torch torchvision lightning tqdm
 
 ## Overview
 
-ESMs often rely on on prescribed monthly tracer concentration fields (**Non-Interactive Tracers, NINT**) to save computational resources, which sacrifices the ability to capture real-time aerosol-climate feedbacks. Smart NINT addresses this limitation by using a **spatiotemporal ML architecture** to interactively calculate tracer concentrations, such as **Black Carbon from Biomass Burning (BCB)**, based on real-time surface emissions and meteorological data.
+ESMs often rely on prescribed monthly tracer concentration fields (**Non-Interactive Tracers, NINT**) to save computational resources, which sacrifices the ability to capture real-time aerosol-climate feedbacks. Smart NINT addresses this limitation by using a **spatiotemporal ML architecture** to interactively calculate tracer concentrations, such as **Black Carbon from Biomass Burning (BCB)**, based on real-time surface emissions and meteorological data.
 
 This approach transforms **AI climate modeling** from basic numerical solver mimicry to spatio-temporal prediction. By incorporating architectural components that capture trends, seasonal patterns, and cyclical behaviors, the model can deliver accurate long-term forecasts which is essential for multi-decadal to centennial climate projections. This enables higher-resolution, reliable climate simulations without the prohibitive computational costs of full physics parameterizations.
  
