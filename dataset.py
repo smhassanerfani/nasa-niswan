@@ -22,42 +22,38 @@ class E33OMAPAD(Dataset):
         self.levels  = levels
         self.seq_len = sequence_length
 
-    def _cyclic_padding(self, data):
-    
-        W = data.shape[4] # longitude
+    def _padding_data(self, data):
+        """
+        Apply cyclic padding along the longitude (W dimension)
+        and reflective padding along the latitude (H dimension).
+        """
+        pad_lat = self.padding[0]  # top and bottom
+        pad_lon = self.padding[1]  # left and right
 
-        # Define the amount of padding required
-        pad_left = self.padding[1]  # Padding on the left side
-        pad_right = self.padding[1] # Padding on the right side
+        H = data.shape[-2]  # latitude
+        W = data.shape[-1]  # longitude
 
-        if (pad_left <= W) and (pad_right <= W):
-            
-            # Cyclically extend data along the longitude
-            return np.concatenate([data[..., -pad_left:], data, data[..., :pad_right]], axis=4)
-        
-        raise AttributeError(f"The requested padding size is larger than width size of the input image.")
+        # --- Cyclic padding along longitude (axis=4) ---
+        if (pad_lon <= W):
+            data = np.concatenate([data[..., -pad_lon:], data, data[..., :pad_lon]], axis=-1)
+        else:
+            raise AttributeError(
+                f"Requested longitude padding ({pad_lon}) exceeds image width ({W})."
+            )
 
-    def _reflective_padding(self, data):
-
-        H = data.shape[3] # latitude
-        
-        # Define the amount of padding required
-        pad_top = self.padding[0]
-        pad_bottom = self.padding[0]
-
-        pad_top    += 1
-        pad_bottom += 1
+        # --- Reflective padding along latitude (axis=3) ---
+        pad_top = pad_lat
+        pad_bottom = pad_lat
 
         if (pad_top <= H) and (pad_bottom <= H):
-            
-            # Reflect data at the latitude boundaries
-            return np.concatenate((np.fliplr(data[:, :, :, 1:pad_top]), data, np.fliplr(data[:, :, :, -pad_bottom:-1])), axis=3)
-        
-        raise AttributeError(f"The requested padding size is larger than height size of the input image.")
-    
-    def _padding_data(self, data):
-        data = self._cyclic_padding(data)
-        data = self._reflective_padding(data)
+            top = np.flip(data[..., 1:pad_top+1, :], axis=-2)
+            bottom = np.flip(data[..., -pad_bottom-1:-1, :], axis=-2)
+            data = np.concatenate((top, data, bottom), axis=-2)
+        else:
+            raise AttributeError(
+                f"Requested latitude padding ({pad_top}, {pad_bottom}) exceeds image height ({H})."
+            )
+
         return data
 
     def _get_data_statistics(self):
@@ -106,10 +102,10 @@ class E33OMAPAD(Dataset):
         self.X3D_std = np.stack(X3D_std, axis=1)
 
         # Target variable (y)
-        self.y_mean = np.array(data['BCB']['avg'][:self.levels], dtype=np.float32).reshape(1, 1, self.levels, 1, 1)
-        self.y_std = np.array(data['BCB']['std'][:self.levels], dtype=np.float32).reshape(1, 1, self.levels, 1, 1) 
-        # self.y_mean = np.array(data['BCB']['avg'][0], dtype=np.float32)
-        # self.y_std = np.array(data['BCB']['std'][0], dtype=np.float32)
+        # self.y_mean = np.array(data['BCB']['avg'][:self.levels], dtype=np.float32).reshape(1, 1, self.levels, 1, 1)
+        # self.y_std = np.array(data['BCB']['std'][:self.levels], dtype=np.float32).reshape(1, 1, self.levels, 1, 1) 
+        self.y_mean = np.array(data['BCB']['avg'][0], dtype=np.float32)
+        self.y_std = np.array(data['BCB']['std'][0], dtype=np.float32)
 
 
 class E3OMA(E33OMAPAD):
@@ -128,11 +124,17 @@ class E3OMA(E33OMAPAD):
         self.lat = self.ds.lat.values
         self.lon = self.ds.lon.values
 
+        self.current_rollout_steps = 1  # How many steps to use in rollout
+
         # Create train/val split
         self._create_data_split()
 
         # Load or compute statistics
         self._get_data_statistics()
+
+    def set_rollout_steps(self, steps):
+        """Set number of rollout steps for progressive training"""
+        self.current_rollout_steps = min(steps, self.seq_len)
 
     def _create_data_split(self):
 
@@ -161,6 +163,7 @@ class E3OMA(E33OMAPAD):
         if self.period == 'test':
             self.X_datetimeindex = X_datetimeindex[len(idx):]
             self.y_datetimeindex = y_datetimeindex[len(idx):]
+            self.datetimeindex = y_timestamps[2 * 365 * 48:]
     
     def create_sequences(self, data_array):
         return np.array([data_array[i:i+self.seq_len] for i in range(len(data_array)-self.seq_len+1)])
@@ -173,6 +176,9 @@ class E3OMA(E33OMAPAD):
         # Get timesteps for this sample
         X_timesteps = self.X_datetimeindex[index]
         y_timesteps = self.y_datetimeindex[index]
+
+        X_timesteps = X_timesteps[:self.current_rollout_steps]
+        y_timesteps = y_timesteps[:self.current_rollout_steps]
 
         # Static variables
         XS = self.ds[['axyp', 'landfr']].to_array().values
@@ -219,43 +225,125 @@ class E33OMAModule(pl.LightningDataModule):
         self.seq_len = data_args['sequence_length']
         self.batch_size = data_args['batch_size']
         self.num_workers = data_args['num_workers']
+        
+        # Progressive training
+        self.current_rollout_steps = 1
+        self._train_dataloader = None
+        self._val_dataloader = None
+        self._dataloader_needs_refresh = False
 
     def prepare_data(self):
         pass
 
     def setup(self, stage: str = None):
-
+        # Create datasets once
         if 'E3OMA1850' == self.data_name:
-            self.train_dataset = E3OMA(period='train', padding= self.padding, species=self.species,
+            self.train_dataset = E3OMA(period='train', padding=self.padding, species=self.species,
                                         levels=self.levels, sequence_length=self.seq_len,
                                         zarr_path='/home/serfani/serfani_data0/E3OMA1850.zarr')
-            self.val_dataset = E3OMA(period='val',  padding= self.padding, species=self.species, 
+            self.val_dataset = E3OMA(period='val', padding=self.padding, species=self.species, 
                                         levels=self.levels, sequence_length=self.seq_len,
                                         zarr_path='/home/serfani/serfani_data0/E3OMA1850.zarr')
         
         elif 'E3OMA2010D' == self.data_name:
-            self.train_dataset = E3OMA(period='train', padding= self.padding, species=self.species,
+            self.train_dataset = E3OMA(period='train', padding=self.padding, species=self.species,
                                         levels=self.levels, sequence_length=self.seq_len,
                                         zarr_path='/home/serfani/serfani_data0/E3OMA2010D.zarr')
-            self.val_dataset = E3OMA(period='val',  padding= self.padding, species=self.species, 
+            self.val_dataset = E3OMA(period='val', padding=self.padding, species=self.species, 
                                         levels=self.levels, sequence_length=self.seq_len,
                                         zarr_path='/home/serfani/serfani_data0/E3OMA2010D.zarr')
+
+    def set_rollout_steps(self, steps):
+        """Update rollout steps and mark dataloaders for refresh"""
+        if steps != self.current_rollout_steps:
+            self.current_rollout_steps = steps
+            self._dataloader_needs_refresh = True
+            
+            # Update datasets
+            if hasattr(self, 'train_dataset'):
+                self.train_dataset.set_rollout_steps(steps)
+            if hasattr(self, 'val_dataset'):
+                self.val_dataset.set_rollout_steps(steps)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
-                          shuffle=True, persistent_workers=True, pin_memory=True)
+        # Recreate dataloader if needed
+        if self._train_dataloader is None or self._dataloader_needs_refresh:
+            self._train_dataloader = DataLoader(
+                self.train_dataset, 
+                batch_size=self.batch_size, 
+                num_workers=self.num_workers,
+                shuffle=True, 
+                persistent_workers=False, 
+                pin_memory=False
+            )
+        return self._train_dataloader
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
-                            shuffle=False, persistent_workers=True, pin_memory=True)
+        # Recreate dataloader if needed
+        if self._val_dataloader is None or self._dataloader_needs_refresh:
+            self._val_dataloader = DataLoader(
+                self.val_dataset, 
+                batch_size=self.batch_size, 
+                num_workers=self.num_workers,
+                shuffle=False, 
+                persistent_workers=False, 
+                pin_memory=False
+            )
+            self._dataloader_needs_refresh = False  # Reset flag after both are created
+        return self._val_dataloader
 
 
 if __name__ == '__main__':
     
-    dataset = E3OMA(period='val', padding=[83, 56], species='bcb', levels=20, sequence_length=48)
-    dataloader = DataLoader(dataset, batch_size=2, num_workers=0, shuffle=True) # persistent_workers=True, pin_memory=True)
+#     dataset = E3OMA(period='val', padding=[83, 56], species='bcb', levels=20, sequence_length=48)
+#     dataloader = DataLoader(dataset, batch_size=2, num_workers=0, shuffle=True) # persistent_workers=True, pin_memory=True)
 
-    dataiter = iter(dataloader)
-    X2D, X3D, y = next(dataiter)
-    print(X2D.shape, X3D.shape, y.shape)
-    # torch.Size([2, 3, 6, 1, 256, 256]) torch.Size([2, 3, 9, 20, 256, 256]) torch.Size([2, 3, 1, 20, 90, 144])
+#     dataiter = iter(dataloader)
+#     X2D, X3D, y = next(dataiter) 
+#     print(X2D.shape, X3D.shape, y.shape)
+#     # torch.Size([2, 3, 6, 1, 256, 256]) torch.Size([2, 3, 9, 20, 256, 256]) torch.Size([2, 3, 1, 20, 90, 144])
+
+#     dataloader.dataset.set_rollout_steps(12)
+#     dataiter = iter(dataloader) # It is equal to reinstantiate the dataloader
+#     X2D, X3D, y = next(dataiter)
+#     print(X2D.shape, X3D.shape, y.shape)
+
+
+    # ---- Define Data Args ----
+    data_args = {
+        'data_name': 'E3OMA1850',
+        'species': 'bcb',
+        'padding': [83, 56],
+        'levels': 20,
+        'sequence_length': 48,
+        'batch_size': 2,
+        'num_workers': 2,
+    }
+
+    # ---- Instantiate DataModule ----
+    dm = E33OMAModule(data_args)
+    dm.setup('fit')
+
+    # ---- Initial Loader ----
+    val_loader = dm.val_dataloader()
+    X2D, X3D, y = next(iter(val_loader))
+    print(f"Initial shapes:\n X2D={X2D.shape}, X3D={X3D.shape}, y={y.shape}")
+    print(f"Initial rollout steps: {dm.current_rollout_steps}")
+
+    # ---- Update Rollout Steps ----
+    new_steps = 12
+    dm.set_rollout_steps(new_steps)
+
+    # You can either use existing val_loader (if dataset updates in-place)
+    # or refresh it (if your dataloader must be recreated)
+    val_loader = dm.val_dataloader()
+
+    X2D2, X3D2, y2 = next(iter(val_loader))
+    print(f"\nAfter rollout update to {new_steps} steps:")
+    print(f" X2D={X2D2.shape}, X3D={X3D2.shape}, y={y2.shape}")
+    print(f"Current rollout steps: {dm.current_rollout_steps}")
+
+    # ---- Optional Assertions ----
+    assert dm.current_rollout_steps == new_steps, "Rollout step count did not update!"
+    assert hasattr(dm.train_dataset, "set_rollout_steps"), "Dataset missing set_rollout_steps()!"
+    assert hasattr(dm.val_dataset, "set_rollout_steps"), "Dataset missing set_rollout_steps()!"

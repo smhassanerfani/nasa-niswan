@@ -17,6 +17,7 @@ from dataset import E33OMAModule
 import torch
 
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 
@@ -45,7 +46,8 @@ def main(args):
     # model_args['log_name'] = 'ConvLSTM-07032025-1434'
 
     # checkpoint_path = None
-    checkpoint_path = '/home/serfani/serfani_data1/snapshots/ConvLSTM-07032025-1434/version_0/checkpoints/epoch=49-step=393700.ckpt'
+    # checkpoint_path = '/home/serfani/serfani_data1/snapshots/ConvLSTM-07032025-1434/version_0/checkpoints/epoch=49-step=393700.ckpt'
+    checkpoint_path = '/home/serfani/serfani_data1/snapshots/UNet-11252025-1128/version_0/checkpoints/last.ckpt'
 
     # Initialize model
     # model = STMLightning(model_args=model_args, data_args=data_args)
@@ -58,6 +60,7 @@ def main(args):
 
     # Initialize logger with the consistent log_name
     tb_logger = TensorBoardLogger(save_dir=model_args['log_dir'], name=model_args['log_name'], version=0)
+    lr_monitor = LearningRateMonitor(logging_interval='epoch')
 
     checkpoint_callback = ModelCheckpoint(
         monitor='val_loss',
@@ -73,8 +76,9 @@ def main(args):
         devices=1,
         precision=32,
         logger=tb_logger,
-        callbacks=[checkpoint_callback],
-        enable_checkpointing=True
+        callbacks=[checkpoint_callback, lr_monitor],
+        enable_checkpointing=True,
+        reload_dataloaders_every_n_epochs=1,   # <-- IMPORTANT
         )
 
     trainer.fit(model, datamodule=dm, ckpt_path=None)
@@ -83,7 +87,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--configdir', help='Provide the filepath string to the model config...', default='configs/ConvLSTM-03102025.yaml')
+    parser.add_argument('--configdir', help='Provide the filepath string to the model config...', default='configs/UNet-10132025.yaml')
     
     args = parser.parse_args()
     main(args)
