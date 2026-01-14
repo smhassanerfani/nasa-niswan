@@ -13,55 +13,48 @@ import pytorch_lightning as pl
 
 class E33OMAPAD(Dataset):
 
-    def __init__(self, period, species, padding, sequence_length=48):
+    def __init__(self, padding):
         super(E33OMAPAD, self).__init__()
 
-        self.period  = period
-        self.species = species
         self.padding = padding
-        self.seq_len = sequence_length
 
-    def _cyclic_padding(self, data):
-    
-        W = data.shape[3] # longitude
+    def _padding_data(self, data):
+        """
+        Apply cyclic padding along the longitude (W dimension)
+        and reflective padding along the latitude (H dimension).
+        """
+        pad_lat = self.padding[0]  # top and bottom
+        pad_lon = self.padding[1]  # left and right
 
-        # Define the amount of padding required
-        pad_left = self.padding[1]  # Padding on the left side
-        pad_right = self.padding[1] # Padding on the right side
+        H = data.shape[-2]  # latitude
+        W = data.shape[-1]  # longitude
 
-        if (pad_left <= W) and (pad_right <= W):
-            
-            # Cyclically extend data along the longitude
-            return np.concatenate([data[..., -pad_left:], data, data[..., :pad_right]], axis=3)
-        
-        raise AttributeError(f"The requested padding size is larger than width size of the input image.")
+        # --- Cyclic padding along longitude (axis=4) ---
+        if (pad_lon <= W):
+            data = np.concatenate([data[..., -pad_lon:], data, data[..., :pad_lon]], axis=-1)
+        else:
+            raise AttributeError(
+                f"Requested longitude padding ({pad_lon}) exceeds image width ({W})."
+            )
 
-    def _reflective_padding(self, data):
-
-        H = data.shape[2] # latitude
-        
-        # Define the amount of padding required
-        pad_top = self.padding[0]
-        pad_bottom = self.padding[0]
-
-        pad_top    += 1
-        pad_bottom += 1
+        # --- Reflective padding along latitude (axis=3) ---
+        pad_top = pad_lat
+        pad_bottom = pad_lat
 
         if (pad_top <= H) and (pad_bottom <= H):
-            
-            # Reflect data at the latitude boundaries
-            return np.concatenate((np.fliplr(data[:, :, 1:pad_top]), data, np.fliplr(data[:, :, -pad_bottom:-1])), axis=2)
-        
-        raise AttributeError(f"The requested padding size is larger than height size of the input image.")
-    
-    def _padding_data(self, data):
-        data = self._cyclic_padding(data)
-        data = self._reflective_padding(data)
+            top = np.flip(data[..., 1:pad_top+1, :], axis=-2)
+            bottom = np.flip(data[..., -pad_bottom-1:-1, :], axis=-2)
+            data = np.concatenate((top, data, bottom), axis=-2)
+        else:
+            raise AttributeError(
+                f"Requested latitude padding ({pad_top}, {pad_bottom}) exceeds image height ({H})."
+            )
+
         return data
 
     def _get_data_statistics(self):
 
-        with open('variable_statistics.json', 'r') as jf:
+        with open('statistics/1950.json', 'r') as jf:
             data = json.load(jf)
             data = data['set1']
         
@@ -75,128 +68,73 @@ class E33OMAPAD(Dataset):
         X3_std = data['w']['std']
         X4_std = data['prec']['std']
 
-        if self.species == 'seasalt':
-            X5_mean = data['ss_src']['mean']; X5_std = data['ss_src']['std']
-            self.y_mean = data['ss_conc']['mean']; self.y_std = data['ss_conc']['std']
+        X5_mean = data['bc_src']['mean']; X5_std = data['bc_src']['std']
+        self.y_mean = data['bc_conc']['mean']; self.y_std = data['bc_conc']['std']
         
-        if self.species == 'clay':
-            X5_mean = data['c_src']['mean']; X5_std = data['c_src']['std']
-            self.y_mean = data['c_conc']['mean']; self.y_std = data['c_conc']['std']
-        
-        if self.species == 'bcb':
-            X5_mean = data['bc_src']['mean']; X5_std = data['bc_src']['std']
-            self.y_mean = data['bc_conc']['mean']; self.y_std = data['bc_conc']['std']
-        
-        self.X_mean = np.array([X1_mean, X2_mean, X3_mean, X4_mean, X5_mean], dtype=np.float32).reshape(1, 5, 1, 1)
-        self.X_std = np.array([X1_std, X2_std, X3_std, X4_std, X5_std], dtype=np.float32).reshape(1, 5, 1, 1)
+        self.X_mean = np.stack([X1_mean, X2_mean, X3_mean, X4_mean, X5_mean, self.y_mean], axis=0, dtype=np.float32).reshape(1, -1, 1, 1)
+        self.X_std = np.stack([X1_std, X2_std, X3_std, X4_std, X5_std, self.y_std], axis=0, dtype=np.float32).reshape(1, -1, 1, 1)
 
 
 class E33OMA(E33OMAPAD):
 
-    def __init__(self, period, species, padding, sequence_length=48, root='/home/serfani/serfani_data1/E33OMA'):
-        super(E33OMA, self).__init__(period, species, padding, sequence_length)
+    def __init__(self, padding, period='train', rollout_steps=1, root='/home/serfani/serfani_data1/E3OMA1950.zarr'):
+        super(E33OMA, self).__init__(padding)
         
         self.root = root
+        self.period = period
+        self.rollout_steps = rollout_steps
+
+        # Open as a single lazy object
+        self.ds = xr.open_zarr(self.root)
+
+        self.times = self.ds.time.values
+        self.lat = self.ds.lat.values
+        self.lon = self.ds.lon.values
+
         self._get_data_index()
         self._get_data_statistics()
-    
+
     def _get_data_index(self):
-        
-        for root, dirs, files in os.walk(self.root):
-            
-            sorted_files = sorted(files)
-            list1 = [os.path.join(root, file) for file in sorted_files if file.split(".")[1] == 'aijlh1E33oma_ai']   # Velocity Fields (time, level, lat, lon)
 
-        # Convert `cftime.DatetimeNoLeap` to `pandas.to_datetime()`
-        warnings.filterwarnings("ignore", message="Converting a CFTimeIndex with dates from a non-standard calendar")
-        ds = xr.open_mfdataset(list1)
-        datetimeindex = ds.indexes['time'].to_datetimeindex()  # 365 x 2 x 48 -> 35040
+        X_timestamps = self.times[:-1]
+        y_timestamps = self.times[1:]
 
-        self.lat = ds.indexes['lat'] 
-        self.lon = ds.indexes['lon']
-        
-        X_datetimeindex = self.create_sequences(datetimeindex)
-        y_datetimeindex = datetimeindex[self.seq_len - 1:]
+        # Create sequences
+        X_datetimeindex = self.create_sequences(X_timestamps)
+        y_datetimeindex = self.create_sequences(y_timestamps)
 
-        idx = np.arange(17520) # 35040 / 2 = 17520
+        idx = np.arange((len(self.times) * 0.5) - self.rollout_steps)  # The entire year of 1950
         rng = np.random.default_rng(42)
         rng.shuffle(idx)
-        idx = idx.tolist()
+
+        # Calculate the split point (ensuring integer)
+        split_point = int(0.9 * len(idx))  # Takes the floor automatically for non-integers
 
         if self.period == 'train':
-            self.X_datetimeindex = [X_datetimeindex[i] for i in idx[:15768]] # 17520 x 0.9 = 15768
-            self.datetimeindex   = [y_datetimeindex[i] for i in idx[:15768]]
+            self.X_datetimeindex = X_datetimeindex[idx[:split_point]]
+            self.y_datetimeindex = y_datetimeindex[idx[:split_point]]
         
         elif self.period == 'val':
-            self.X_datetimeindex = [X_datetimeindex[i] for i in idx[15768:15768+1752]] # 17520 x 0.1 = 1752
-            self.datetimeindex   = [y_datetimeindex[i] for i in idx[15768:15768+1752]]
+            self.X_datetimeindex = X_datetimeindex[idx[split_point:]] 
+            self.y_datetimeindex = y_datetimeindex[idx[split_point:]]
         
-        elif self.period == 'test':
-            self.X_datetimeindex = X_datetimeindex[17520:] # 17520 x 0.9
-            self.datetimeindex   = y_datetimeindex[17520:]
+        if self.period == 'test':
+            self.X_datetimeindex = X_datetimeindex[len(idx):]
+            self.y_datetimeindex = y_datetimeindex[len(idx):]
+    
+    def create_sequences(self, data_array):
+        return np.array([data_array[i:i+self.rollout_steps] for i in range(len(data_array)-self.rollout_steps+1)])
+
 
     def __getitem__(self, index):
+
+        # Get timesteps for this sample
+        X_timesteps = self.X_datetimeindex[index]
+        y_timesteps = self.y_datetimeindex[index]
+
+        X = self.ds[['u', 'v', 'omega', 'prec', 'BCB_biomass_src', 'BCB']].sel(time=X_timesteps).to_array().values.transpose(1, 0, 2, 3)
+        y = self.ds[['BCB']].sel(time=y_timesteps).to_array().values.transpose(1, 0, 2, 3)
         
-        timesteps = self.X_datetimeindex[index]
-        
-        ls1 = [os.path.join(self.root, f'{ts}.aijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-        ds1 = xr.open_mfdataset(ls1)
-        ds1['time'] = ds1.indexes['time'].to_datetimeindex()
-
-        ls2 = [os.path.join(self.root, f'{ts}.cijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-        ds2 = xr.open_mfdataset(ls2)
-        ds2['time'] = ds2.indexes['time'].to_datetimeindex()
-        
-        X1 = ds1['u'].isel(level=0).sel(time=slice(timesteps[0], timesteps[-1]))
-        X2 = ds1['v'].isel(level=0).sel(time=slice(timesteps[0], timesteps[-1]))
-        X3 = ds1['omega'].isel(level=0).sel(time=slice(timesteps[0], timesteps[-1]))
-        
-        X4 = ds2['prec'].sel(time=slice(timesteps[0], timesteps[-1]))
-
-        if self.species == 'seasalt':
-
-            ls3 = [os.path.join(self.root, f'{ts}.taijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds3 = xr.open_mfdataset(ls3)
-            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
-
-            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds4 = xr.open_mfdataset(ls4)
-            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
-
-            X5 = ds3['seasalt1_ocean_src'].sel(time=slice(timesteps[0], timesteps[-1]))
-            y  = ds4['seasalt1'].isel(level=0).sel(time=self.datetimeindex[index]).values
-            y  = y[np.newaxis, np.newaxis, :, :]
-
-        if self.species == 'clay':
-
-            ls3 = [os.path.join(self.root, f'{ts}.tNDaijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds3 = xr.open_mfdataset(ls3)
-            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
-
-            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds4 = xr.open_mfdataset(ls4)
-            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
-
-            X5 = ds3['Clay_emission'].sel(time=slice(timesteps[0], timesteps[-1]))
-            y  = ds4['Clay'].isel(level=0).sel(time=self.datetimeindex[index]).values
-            y  = y[np.newaxis, np.newaxis, :, :]
-
-        if self.species == 'bcb':
-
-            ls3 = [os.path.join(self.root, f'{ts}.tNDaijh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds3 = xr.open_mfdataset(ls3)
-            ds3['time'] = ds3.indexes['time'].to_datetimeindex()
-
-            ls4 = [os.path.join(self.root, f'{ts}.taijlh1E33oma_ai.nc') for ts in set(timesteps.strftime('%Y%m%d'))]
-            ds4 = xr.open_mfdataset(ls4)
-            ds4['time'] = ds4.indexes['time'].to_datetimeindex()
-
-            X5 = ds3['BCB_biomass_src'].sel(time=slice(timesteps[0], timesteps[-1]))
-            y  = ds4['BCB'].isel(level=0).sel(time=self.datetimeindex[index]).values
-            y  = y[np.newaxis, np.newaxis, :, :]
-
-        X = np.stack([X1, X2, X3, X4, X5], axis=1) # (sequence_length, channels, height, width)
-
         X = (X - self.X_mean) / self.X_std
         y = (y - self.y_mean) / self.y_std
 
@@ -207,13 +145,9 @@ class E33OMA(E33OMAPAD):
         y = torch.from_numpy(y).type(torch.float32) # torch image: (channels, sequence_length, height, width)
 
         return X, y 
-        
-    def create_sequences(self, data_array):
-        sequences = [data_array[i:i+self.seq_len] for i in range(len(data_array) - self.seq_len + 1)]
-        return sequences
-           
+         
     def __len__(self):
-        return len(self.datetimeindex)
+        return len(self.X_datetimeindex)
 
 
 class E33OMAModule(pl.LightningDataModule):
@@ -221,9 +155,8 @@ class E33OMAModule(pl.LightningDataModule):
         super().__init__()
 
         self.data_name = data_args['data_name']
-        self.species = data_args['species']
         self.padding = data_args['padding']
-        self.seq_len = data_args['sequence_length']
+        self.rollout_steps = data_args['sequence_length']
         self.batch_size = data_args['batch_size']
         self.num_workers = data_args['num_workers']
 
@@ -235,13 +168,9 @@ class E33OMAModule(pl.LightningDataModule):
     def setup(self, stage: str = None):
         # This method sets up the train, validation, and test datasets.
         # It is called on every GPU separately.
-        if 'E33OMA' == self.data_name:
-            self.train_dataset = E33OMA(period='train', padding= self.padding, species=self.species, sequence_length=self.seq_len)
-            self.val_dataset = E33OMA(period='val',  padding= self.padding, species=self.species, sequence_length=self.seq_len)
-        
-        elif 'E33OMA90D' == self.data_name:
-            self.train_dataset = E33OMA90D(period='train', padding= self.padding, species=self.species, sequence_length=self.seq_len)
-            self.val_dataset = E33OMA90D(period='val',  padding= self.padding, species=self.species, sequence_length=self.seq_len)
+        if 'E33OMA1950' == self.data_name:
+            self.train_dataset = E33OMA(period='train', padding= self.padding, species=self.species, sequence_length=self.rollout_steps)
+            self.val_dataset = E33OMA(period='val',  padding= self.padding, species=self.species, sequence_length=self.rollout_steps)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
@@ -254,11 +183,14 @@ class E33OMAModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     
-    dataset = E33OMA90D(period='val', padding=[0, 0], species='bcb', sequence_length=48)
-    dataloader = DataLoader(dataset, batch_size=8, num_workers=4, shuffle=True)
-    dataiter = iter(dataloader)
+    dataset = E33OMA(period='test', padding=[83, 56], rollout_steps=3)
+    dataloader = DataLoader(dataset, batch_size=2, num_workers=1, shuffle=True)
 
+    dataiter = iter(dataloader)
     X, y = next(dataiter)
 
     print(len(dataset))
     print(X.shape, y.shape)
+
+    # for i, (X, y) in enumerate(dataloader):
+    #     print(i, X.shape, y.shape)
