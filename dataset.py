@@ -183,7 +183,7 @@ class E33OMAModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     
-    dataset = E33OMA(period='test', padding=[83, 56], rollout_steps=3)
+    dataset = E33OMA(period='train', padding=[83, 56], rollout_steps=3)
     dataloader = DataLoader(dataset, batch_size=2, num_workers=1, shuffle=True)
 
     dataiter = iter(dataloader)
