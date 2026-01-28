@@ -1,291 +1,66 @@
-
-import os
-import time
-import logging
-import datetime
-import random
-import numpy as np
 import torch
-from functools import wraps
-from sklearn.metrics import r2_score
-
 import torch.nn as nn
-import matplotlib.pyplot as plt
-import xarray as xr
 
-# Plot Settings
-plt.rcParams.update({
-    # 'font.sans-serif': 'Comic Sans MS',
-    'font.family': 'serif',
-    'font.size': 12,
-    'text.usetex': False   
-})
+def _apply_padding(data, padding):
+    """
+    Apply cyclic padding along the longitude (W dimension)
+    and reflective padding along the latitude (H dimension).
+    """
+    pad_lat = padding[0]  # top and bottom
+    pad_lon = padding[1]  # left and right
 
-def save_checkpoint(model, optimizer, filename, learning_rate=None, epoch=None):
+    H = data.shape[-2]  # latitude
+    W = data.shape[-1]  # longitude
 
-    print('Saving Checkpoint...')
-    checkpoint = {
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'learning_rate': learning_rate,
-        'epoch': epoch
-    }
-    torch.save(checkpoint, filename)
-
-def load_checkpoint(checkpoint_file, model, optimizer=None, lr=None):
-    
-    checkpoint = torch.load(checkpoint_file)
-    print('Number of Epochs: ', checkpoint['epoch'])
-    print('Learning Rate: ', checkpoint['learning_rate'])
-    model.load_state_dict(checkpoint['model_state_dict'])
-    
-    if optimizer is not None:
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-      
-        if lr is not None:
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-
-        elif checkpoint['learning_rate'] is not None:
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = checkpoint['learning_rate']
-
-def val_loop(args, dataloader, model):
-
-    model.eval()
-    r2 = 0.0
-    
-    with torch.no_grad():
-        for counter, (X, y) in enumerate(dataloader, 1):
-
-            # GPU deployment
-            X = X.cuda()
-            y = y.cuda()
-
-            # Compute prediction and loss
-            pred = model(X)
-
-            if args.model.split('-')[0] in ['PIX2PIX', 'UNet']:
-                pred = pred[:, :, 83:83+90, 56:56+144]
-            
-            elif args.model.split('-')[0] in ['LSTM']:
-                pred = pred[:, :, 5:5+90, 5:5+144].squeeze()
-            
-            r2 += r2_score(y.detach().cpu().numpy().flatten(), pred.detach().cpu().numpy().flatten())
-
-    return r2 / len(dataloader)
-
-def seed(seed=0):
-
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-class LoggerDecorator(object):
-    def __init__(self, log_file, level=logging.INFO):
-        self.log_file = log_file
-        self.level = level
-
-    def __call__(self, func):
-        
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            
-            logger = logging.getLogger()
-            logger.setLevel(self.level)
-            handler = logging.FileHandler(self.log_file)
-            formatter = logging.Formatter('%(levelname)s %(asctime)s %(message)s')
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-
-            tic = time.time()
-            result = func(*args, **kwargs)
-            toc = time.time() - tic
-
-            # Convert time difference to conventional format
-            compiling_time = str(datetime.timedelta(seconds=toc))
-            logger.info(f"Run configuration: {args, kwargs}, Compiling time: {compiling_time}")
-
-            logger.removeHandler(handler)
-            
-            return result
-        
-        return wrapper
-
-def make_saving_path(root, format, name):
-    return os.path.join(root, f'{name}.{format}')
-
-def qqplot(y_test, y_pred, yax1='' ,axis_names=None, quantiles=None, save_figure=False, fformat=None, saving_path=None):
-
-    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(10, 3), constrained_layout=True)
-
-    if axis_names is None:
-        y_test_name='GT'
-        y_pred_name='MODEL'
+    # --- Cyclic padding along longitude (axis=4) ---
+    if (pad_lon <= W):
+        data = torch.concatenate([data[..., -pad_lon:], data, data[..., :pad_lon]], axis=-1)
     else:
-        y_test_name=axis_names[0]
-        y_pred_name=axis_names[1]
+        raise AttributeError(
+            f"Requested longitude padding ({pad_lon}) exceeds image width ({W})."
+        )
 
-    ax1.boxplot([y_test, y_pred], showmeans=True, showfliers=False)
+    # --- Reflective padding along latitude (axis=3) ---
+    pad_top = pad_lat
+    pad_bottom = pad_lat
 
-    ax1.set_xticklabels([y_test_name, y_pred_name])
-    ax1.tick_params(axis='x', labelrotation=0, labelsize=12)
-    ax1.set_ylabel(yax1)
-    ax1.grid(True)
+    if (pad_top <= H) and (pad_bottom <= H):
+        top = torch.flip(data[..., 1:pad_top+1, :], dims=[-2])
+        bottom = torch.flip(data[..., -pad_bottom-1:-1, :], dims=[-2])
+        data = torch.concatenate((top, data, bottom), axis=-2)
+    else:
+        raise AttributeError(
+            f"Requested latitude padding ({pad_top}, {pad_bottom}) exceeds image height ({H})."
+        )
 
-    x1 = np.sort(y_test)
-    y1 = np.arange(1, len(y_test) + 1) / len(y_test)
-    ax2.plot(x1, y1, linestyle='-', alpha=0.8, label=y_test_name)
-
-    x2 = np.sort(y_pred)
-    y2 = np.arange(1, len(y_pred) + 1) / len(y_pred)
-    ax2.plot(x2, y2, linestyle='-.', alpha=1, label=y_pred_name)
-    ax2.grid(True)
-    ax2.legend()
-
-    if quantiles is None:
-        quantiles = min(len(y_test), len(y_pred))
-    quantiles = np.linspace(start=0, stop=1, num=int(quantiles))
-
-    x_quantiles = np.quantile(y_test, quantiles, method='nearest')
-    y_quantiles = np.quantile(y_pred, quantiles, method='nearest')
-
-    ax3.scatter(x_quantiles, y_quantiles)
-
-    max_value = np.array((x_quantiles, y_quantiles)).max()
-    min_value = np.array((x_quantiles, y_quantiles)).min()
-    ax3.plot([min_value, max_value], [min_value, max_value], '--', color='black', linewidth=1.5)
-
-    ax3.set_xlabel(y_test_name)
-    ax3.set_ylabel(y_pred_name)
-
-    if save_figure:
-        plt.savefig(saving_path, format=f'{fformat}', bbox_inches='tight', pad_inches=0.1)
-    
-    plt.show()
+    return data
 
 
-def plot_global_ave(ds, save_figure=False, fformat=None, saving_path=None):
-
-    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(20, 4), constrained_layout=True, gridspec_kw={'width_ratios':[1, 4]})
-
-    avg1950 = ds.isel(time=slice(0, 17520)).values
-    avg1951 = ds.isel(time=slice(17520, None)).values
-
-    max_value = np.array((avg1950, avg1951)).max()
-    min_value = np.array((avg1950, avg1951)).min()
-
-    ax1.scatter(avg1950.ravel(), avg1951.ravel(), color='teal', edgecolor='steelblue', alpha=0.5)
-    ax1.plot([min_value, max_value], [min_value, max_value], '--', color='black', linewidth=1.5)
-    ax1.set_xlabel('1950')
-    ax1.set_ylabel('1951')
-    ax1.grid()
-
-    ax2.plot(avg1950, label='1950')
-    ax2.plot(avg1951, label='1951')
-    ax2.grid()
-
-    # Add tick labels for 12 months
-    month_indices = range(0, 17520, 17520 // 12)
-    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-    ax2.set_xticks(month_indices)
-    ax2.set_xticklabels(month_names, rotation=45)
-
-    # Add title for the entire subplot
-    # plt.suptitle(f'Input Variable: {var}')
-
-    plt.legend()
-
-    if save_figure:
-        plt.savefig(saving_path, format=f'{fformat}', bbox_inches='tight', pad_inches=0.1)
-    
-    plt.show()
-
-def find_nearest(array, lat, lon):
-    array = np.asarray(array)
-    idx1 = (np.abs(array[:, 0] - lat)).argmin()
-    lat = array[idx1, 0]
-    
-    array = array[(array[:, 0] == lat)]
-    idx2 = (np.abs(array[:, 1] - lon)).argmin()
-    lon = array[idx2, 1]
-    return lat, lon
-
-def plot_on_grid(df, lat, lon):
-
-    lat, lon = find_nearest(df[['lat', 'lon']], lat, lon)
-
-    gdf = df.groupby(['lat', 'lon'])
-    g = gdf.get_group((lat, lon))
-    g = g.sort_values('time')
-    r2 = g['Coefficient of Determination'].iloc[0]
-    print(f'exact coordinates, lat:{lat}, lon:{lon}, R2: {r2:.2f}')
-    
-    fig, ax = plt.subplots(figsize=(20, 4))
-    g.set_index('time')[['Real Data', 'Model Output']].plot(ax=ax)
-    
-    ax.grid(True)
-    plt.show()
-
-class RMSELoss(nn.Module):
-    def __init__(self, dataset):
-        super(RMSELoss, self).__init__()
-        # Define latitude range
-        if dataset == 'E33OMA':
-            self.lat = torch.cat((torch.tensor([-90]), torch.linspace(-87, 87, 88), torch.tensor([90])))
-        elif dataset == 'E33OMA90D':
-            self.lat = torch.cat((torch.tensor([-32]), torch.linspace(-30, 30, 30), torch.tensor([32])))
-
-    def forward(self, y_pred, y_true):
-        B, T, C, N_lat, N_lon = y_pred.shape
-        # Move latitude tensor to the same device as y_pred
-        device = y_pred.device
-        lat = self.lat.to(device)
-        # Compute latitude weights
-        L = torch.cos(torch.deg2rad(lat))
-        L /= L.sum()  # Normalize weights
-        # Compute weighted squared error
-        squared_errors = (y_pred - y_true) ** 2
-        weighted_errors = (L[None, None, None, :, None] * squared_errors).sum()
-        # Compute RMSE
-        rmse = torch.sqrt(weighted_errors / (B * T * C * N_lat * N_lon))
-        return rmse
-
-
-class RMSLELoss(nn.Module):
-    def __init__(self):
+class LatitudeWeightedMSE(nn.Module):
+    def __init__(self, lat_res=90, device="cuda"):
         super().__init__()
-        self.mse = nn.MSELoss()
+        self.device = device
         
-    def forward(self, pred, actual):
-        return torch.sqrt(self.mse(torch.log(pred + 1), torch.log(actual + 1)))
+        # 1. Generate Latitude weights (Cosine of latitude)
+        # Grid assumes typically [90, -90] or [-90, 90]. 
+        # For Equiangular grid, we create a 1D tensor of weights.
+        
+        # Create a linear space for latitude from -90 to 90 (in radians)
+        lats = torch.linspace(-torch.pi/2, torch.pi/2, lat_res)
+        
+        # Calculate cosine weights
+        weights = torch.cos(lats)
+        
+        # Reshape to broadcast: (1, 1, Lat, 1) -> fits (B, C, H, W)
+        # We assume H=lat_res
+        self.weights = weights.view(1, 1, -1, 1).to(device)
 
-
-class LogCoshLoss(nn.Module):
-    def __init__(self):
-        """
-        Initialize the Log-Cosh Loss.
-        """
-        super(LogCoshLoss, self).__init__()
-
-    def forward(self, y_pred, y_true):
-        """
-        Compute the Log-Cosh Loss.
-
-        Args:
-            y_pred (torch.Tensor): Predicted values (shape: [N, ...]).
-            y_true (torch.Tensor): Ground truth values (shape: [N, ...]).
-
-        Returns:
-            torch.Tensor: Scalar loss value.
-        """
-        diff = y_pred - y_true
-        return torch.mean(torch.log(torch.cosh(diff)))
+    def forward(self, pred, target):
+        # Squared Error
+        diff_sq = (pred - target) ** 2
+        
+        # Weighted Mean
+        # We multiply error by weights, then mean.
+        weighted_mse = torch.mean(diff_sq * self.weights)
+        
+        return weighted_mse

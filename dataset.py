@@ -1,15 +1,10 @@
-import os
 import json
-import warnings
 
 import numpy as np
 import xarray as xr
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-
-import pytorch_lightning as pl
-
 
 class E33OMAPAD(Dataset):
 
@@ -54,7 +49,7 @@ class E33OMAPAD(Dataset):
 
     def _get_data_statistics(self):
 
-        with open('statistics/1950.json', 'r') as jf:
+        with open('/home/serfani/projects/nasa-niswan/statistics/1950.json', 'r') as jf:
             data = json.load(jf)
             data = data['set1']
         
@@ -73,6 +68,7 @@ class E33OMAPAD(Dataset):
         
         self.X_mean = np.stack([X1_mean, X2_mean, X3_mean, X4_mean, X5_mean, self.y_mean], axis=0, dtype=np.float32).reshape(1, -1, 1, 1)
         self.X_std = np.stack([X1_std, X2_std, X3_std, X4_std, X5_std, self.y_std], axis=0, dtype=np.float32).reshape(1, -1, 1, 1)
+
 
 
 class E33OMA(E33OMAPAD):
@@ -103,7 +99,7 @@ class E33OMA(E33OMAPAD):
         X_datetimeindex = self.create_sequences(X_timestamps)
         y_datetimeindex = self.create_sequences(y_timestamps)
 
-        idx = np.arange((len(self.times) * 0.5) - self.rollout_steps)  # The entire year of 1950
+        idx = np.arange((len(self.times) * 0.5) - self.rollout_steps, dtype='int')  # The entire year of 1950
         rng = np.random.default_rng(42)
         rng.shuffle(idx)
 
@@ -148,49 +144,3 @@ class E33OMA(E33OMAPAD):
          
     def __len__(self):
         return len(self.X_datetimeindex)
-
-
-class E33OMAModule(pl.LightningDataModule):
-    def __init__(self, data_args):
-        super().__init__()
-
-        self.data_name = data_args['data_name']
-        self.padding = data_args['padding']
-        self.rollout_steps = data_args['sequence_length']
-        self.batch_size = data_args['batch_size']
-        self.num_workers = data_args['num_workers']
-
-    def prepare_data(self):
-        # This method is used to download or prepare the data. It is called only once.
-        # Example: Download your dataset if it doesn't already exist in the specified directory.
-        pass
-
-    def setup(self, stage: str = None):
-        # This method sets up the train, validation, and test datasets.
-        # It is called on every GPU separately.
-        if 'E33OMA1950' == self.data_name:
-            self.train_dataset = E33OMA(period='train', padding= self.padding, species=self.species, sequence_length=self.rollout_steps)
-            self.val_dataset = E33OMA(period='val',  padding= self.padding, species=self.species, sequence_length=self.rollout_steps)
-
-    def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
-                          shuffle=True, persistent_workers=True, pin_memory=True)
-
-    def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
-                          persistent_workers=True, pin_memory=True)
-
-
-if __name__ == '__main__':
-    
-    dataset = E33OMA(period='train', padding=[83, 56], rollout_steps=3)
-    dataloader = DataLoader(dataset, batch_size=2, num_workers=1, shuffle=True)
-
-    dataiter = iter(dataloader)
-    X, y = next(dataiter)
-
-    print(len(dataset))
-    print(X.shape, y.shape)
-
-    # for i, (X, y) in enumerate(dataloader):
-    #     print(i, X.shape, y.shape)
