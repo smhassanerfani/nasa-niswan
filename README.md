@@ -74,6 +74,20 @@ We aim to extend this methodology to other aerosol and gaseous tracers and integ
 ## Reference
 Please cite the following papers when referencing this work or any of the foundational concepts discussed, and use the provided links to find the manuscripts:
 
+  * **[Manuscript at JGR: Machine Learning & Computation 2026](https://doi.org/10.1029/2025JH001011)**
+
+    ```bibtex
+    @article{erfani2026spatiotemporal,
+    author = {Erfani, Mohammad H. and Lamb, Kara D. and Bauer, Susanne E. and Tsigaridis, Kostas and van Lier-Walqui, Marcus and Schmidt, Gavin},
+    title = {Spatiotemporal Machine Learning Approaches for Atmospheric Composition Emulation in NASA GISS ModelE},
+    journal = {Journal of Geophysical Research: Machine Learning and Computation},
+    volume = {3},
+    number = {3},
+    pages = {e2025JH001011},
+    doi = {https://doi.org/10.1029/2025JH001011},
+    year = {2026}
+    }
+    ```
 
   * **[Manuscript at NeurIPS 2025](https://arxiv.org/abs/2510.10654)**
 
